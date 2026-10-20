@@ -1,0 +1,15 @@
+# Data (never in git)
+/data/
+
+# Local docs and agent instructions (not published)
+/docs/
+CLAUDE.md
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
