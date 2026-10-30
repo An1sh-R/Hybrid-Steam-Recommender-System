@@ -5,10 +5,12 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.4",
     "pandas>=3.1.0",
+    "pyarrow>=26.0.0",
 ]
 
 [dependency-groups]
 dev = [
+    "dvc>=3.67.1",
     "ipykernel>=7.4.0",
     "matplotlib>=3.11.2",
     "nbconvert>=7.17.2",

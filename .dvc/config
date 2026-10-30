@@ -1,0 +1,5 @@
+[core]
+    analytics = false
+    remote = origin
+['remote "origin"']
+    url = https://dagshub.com/anish.ray2006/Hybrid-Steam-Recommender-System.dvc
