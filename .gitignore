@@ -1,5 +1,5 @@
-# Data (never in git)
-/data/
+# Data is tracked by DVC, not git: DVC writes data/.gitignore for each tracked folder
+# and git only stores the small .dvc / dvc.lock pointer files.
 
 # Local docs and agent instructions (not published)
 /docs/

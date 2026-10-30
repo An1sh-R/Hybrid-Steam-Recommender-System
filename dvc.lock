@@ -1,0 +1,24 @@
+schema: '2.0'
+stages:
+  prepare:
+    cmd: uv run python -m steam_rec.prepare
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 69c5f77307038ad17c6e0a447b7cecce.dir
+      size: 2238703459
+      nfiles: 4
+    - path: src/steam_rec/data.py
+      hash: md5
+      md5: 2f96aa0c792cc469abc85078772a9eec
+      size: 2354
+    - path: src/steam_rec/prepare.py
+      hash: md5
+      md5: 32439ad0f9c68f564c825978c2ab66a2
+      size: 1484
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: e109f78b0ff42f1fa2e84c7a72fb09b1.dir
+      size: 342365099
+      nfiles: 2

@@ -1,0 +1,12 @@
+# DVC pipeline. `uv run dvc repro` re-runs only the stages whose deps changed.
+# One stage per step; later stages (co-occurrence, content, ranker, eval) get added below.
+
+stages:
+  prepare:
+    cmd: uv run python -m steam_rec.prepare
+    deps:
+      - data/raw
+      - src/steam_rec/data.py
+      - src/steam_rec/prepare.py
+    outs:
+      - data/processed
