@@ -1,0 +1,28 @@
+# CI: install the locked environment and run the test suite.
+# Runs on every pull request and on every push to main.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies from uv.lock
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest
