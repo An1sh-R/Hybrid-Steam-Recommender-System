@@ -10,6 +10,8 @@ Outputs data/cooccurrence/{val,test}_neighbors.parquet with columns
 app_id, neighbor_id, both_liked, similarity, also_liked_share.
 `also_liked_share` = both_liked / likes_a: "N% of players who liked A also liked B" (D11).
 
+`recommend()` turns a user's seed games + the neighbour table into ranked candidates (D21).
+
 Run with: uv run python -m steam_rec.cooccurrence
 """
 
@@ -32,6 +34,7 @@ MAX_LIKES_PER_USER = 100
 MIN_BOTH_LIKED = 5
 TOP_K = 100
 CHUNK_SIZE = 500
+TOP_N = 200
 
 
 def likes_before(reviews: pd.DataFrame, cutoff: pd.Timestamp, max_per_user: int = MAX_LIKES_PER_USER) -> pd.DataFrame:
@@ -73,7 +76,7 @@ def top_neighbors(
     for start in range(0, n_games, chunk_size):
         end = min(start + chunk_size, n_games)
         # both_liked[a, b] = number of users who liked game a and game b.
-        both_liked = (games_by_users[start:end] @ matrix).tocoo()
+        both_liked = sparse.coo_matrix(games_by_users[start:end] @ matrix)
 
         pairs = pd.DataFrame({
             "game": both_liked.row + start,
@@ -105,6 +108,37 @@ def build_neighbors(reviews: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame
     likes = likes_before(reviews, cutoff)
     matrix, app_ids = build_like_matrix(likes)
     return top_neighbors(matrix, app_ids)
+
+
+def recommend(seeds: pd.DataFrame, neighbors: pd.DataFrame, top_n: int = TOP_N) -> pd.DataFrame:
+    """Rank candidate games per user by their summed similarity to the user's seed games.
+
+    `seeds` has columns user_id, app_id (one row per seed). Returns user_id, app_id, score,
+    best_seed, best_seed_share, rank: best_seed is the seed that contributed most (the explanation).
+    """
+    # One row per (user, seed, neighbour of that seed).
+    seed_neighbors = seeds.merge(neighbors, on="app_id")
+    seed_neighbors = seed_neighbors.rename(columns={"app_id": "seed_id", "neighbor_id": "app_id"})
+
+    # Never recommend a game the user already gave as a seed.
+    matched = seed_neighbors.merge(seeds, on=["user_id", "app_id"], how="left", indicator=True)
+    is_seed = (matched["_merge"] == "both").to_numpy()
+    candidates = seed_neighbors[~is_seed]
+
+    # Score = sum of the candidate's similarity to each seed.
+    scores = candidates.groupby(["user_id", "app_id"], as_index=False).agg(score=("similarity", "sum"))
+
+    # Explanation = the seed with the highest similarity to the candidate.
+    best = candidates.sort_values("similarity", ascending=False)
+    best = best.drop_duplicates(subset=["user_id", "app_id"], keep="first")
+    best = best[["user_id", "app_id", "seed_id", "also_liked_share"]]
+    best = best.rename(columns={"seed_id": "best_seed", "also_liked_share": "best_seed_share"})
+
+    recs = scores.merge(best, on=["user_id", "app_id"])
+    recs = recs.sort_values(["user_id", "score", "app_id"], ascending=[True, False, True])
+    recs = recs.groupby("user_id").head(top_n)
+    recs["rank"] = recs.groupby("user_id").cumcount() + 1
+    return recs.reset_index(drop=True)
 
 
 def cooccurrence(processed_dir: Path = PROCESSED_DIR, out_dir: Path = COOCCURRENCE_DIR) -> None:
