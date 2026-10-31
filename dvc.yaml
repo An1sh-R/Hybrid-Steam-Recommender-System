@@ -10,3 +10,11 @@ stages:
       - src/steam_rec/prepare.py
     outs:
       - data/processed
+
+  split:
+    cmd: uv run python -m steam_rec.split
+    deps:
+      - data/processed/reviews.parquet
+      - src/steam_rec/split.py
+    outs:
+      - data/split

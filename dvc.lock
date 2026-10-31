@@ -22,3 +22,20 @@ stages:
       md5: e109f78b0ff42f1fa2e84c7a72fb09b1.dir
       size: 342365099
       nfiles: 2
+  split:
+    cmd: uv run python -m steam_rec.split
+    deps:
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: src/steam_rec/split.py
+      hash: md5
+      md5: 40f7cf97eceb04728e2d7180d2db50fb
+      size: 4435
+    outs:
+    - path: data/split
+      hash: md5
+      md5: 0ae1135cfc1894542999e5814915be82.dir
+      size: 3052829
+      nfiles: 4
