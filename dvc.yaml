@@ -18,3 +18,12 @@ stages:
       - src/steam_rec/split.py
     outs:
       - data/split
+
+  cooccurrence:
+    cmd: uv run python -m steam_rec.cooccurrence
+    deps:
+      - data/processed/reviews.parquet
+      - src/steam_rec/split.py
+      - src/steam_rec/cooccurrence.py
+    outs:
+      - data/cooccurrence

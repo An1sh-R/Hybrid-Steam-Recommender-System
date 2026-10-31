@@ -39,3 +39,24 @@ stages:
       md5: 0ae1135cfc1894542999e5814915be82.dir
       size: 3052829
       nfiles: 4
+  cooccurrence:
+    cmd: uv run python -m steam_rec.cooccurrence
+    deps:
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: src/steam_rec/cooccurrence.py
+      hash: md5
+      md5: 440bff81aae007a760aee659306bac53
+      size: 5278
+    - path: src/steam_rec/split.py
+      hash: md5
+      md5: 40f7cf97eceb04728e2d7180d2db50fb
+      size: 4435
+    outs:
+    - path: data/cooccurrence
+      hash: md5
+      md5: 8d69cb8426c48a17d56541bdc1bd484a.dir
+      size: 29129888
+      nfiles: 2
