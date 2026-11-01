@@ -1,6 +1,7 @@
 """Web API for the recommender (decision D30).
 
 Endpoints:
+- GET  /                       -> the web page (static/index.html)
 - GET  /health                 -> {"status": "ok"}, for Docker / hosting health checks
 - GET  /search?q=hollow        -> games whose title contains the text, most-reviewed first
 - POST /recommend              -> body {"app_ids": [3 to 5 different games]}; 10 games with reasons
@@ -11,13 +12,17 @@ Run with: uv run uvicorn steam_rec.api:app --reload
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Callable
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from steam_rec.recommender import Artifacts, load_artifacts, recommend, search_games
 from steam_rec.split import MAX_SEEDS, MIN_SEEDS
+
+INDEX_PAGE = Path(__file__).parent / "static" / "index.html"
 
 
 class GameOut(BaseModel):
@@ -77,6 +82,11 @@ def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
         yield
 
     app = FastAPI(title="Steam game recommender", lifespan=lifespan)
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        """The web page; it calls /search and /recommend from the browser."""
+        return FileResponse(INDEX_PAGE)
 
     @app.get("/health")
     def health() -> dict:

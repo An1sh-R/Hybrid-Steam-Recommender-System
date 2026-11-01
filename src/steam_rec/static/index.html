@@ -1,0 +1,377 @@
+<!doctype html>
+<!--
+  The recommender's web page (decision D31). Served by api.py at "/".
+  Search for 3-5 games you liked, then ask for recommendations. Each seed game gets its own
+  colour, and every recommendation shows a dot in the colour of the seed that led to it.
+  Plain HTML, CSS and JavaScript: no build step, no framework.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam game recommender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #EEF1F6;
+      --surface: #FFFFFF;
+      --ink: #1D2433;
+      --muted: #5B6476;
+      --line: #D5DAE3;
+      --link: #3949AB;
+      --error: #B3261E;
+      /* One colour per seed game, in the order they're picked. */
+      --seed-1: #2a78d6;
+      --seed-2: #eb6834;
+      --seed-3: #1baf7a;
+      --seed-4: #eda100;
+      --seed-5: #e87ba4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--ink);
+      font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+      font-size: 1.0625rem;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 3rem 1rem 4rem;
+    }
+
+    h1 {
+      font-family: "Bricolage Grotesque", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.25rem, 7vw, 3.5rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.75rem;
+    }
+
+    h2 {
+      font-family: "Bricolage Grotesque", system-ui, sans-serif;
+      font-weight: 600;
+      font-size: 1.5rem;
+      margin: 2.5rem 0 1rem;
+    }
+
+    .intro { color: var(--muted); margin: 0 0 2rem; max-width: 60ch; }
+
+    label { display: block; font-weight: 700; margin-bottom: 0.4rem; }
+
+    .search { position: relative; }
+
+    input[type="search"] {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      font: inherit;
+      color: var(--ink);
+      background: var(--surface);
+      border: 2px solid var(--line);
+      border-radius: 10px;
+    }
+
+    input[type="search"]:focus { outline: none; border-color: var(--link); }
+
+    .matches {
+      list-style: none;
+      margin: 0.25rem 0 0;
+      padding: 0.25rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 1;
+    }
+
+    .matches:empty { display: none; }
+
+    .matches button {
+      width: 100%;
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      font: inherit;
+      color: var(--ink);
+      background: none;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .matches button:hover, .matches button:focus-visible { background: var(--background); outline: none; }
+
+    .year { color: var(--muted); }
+
+    .seeds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+      margin: 1rem 0;
+      padding: 0;
+      min-height: 2.5rem;
+    }
+
+    .seed {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+
+    .dot {
+      flex: none;
+      width: 0.75rem;
+      height: 0.75rem;
+      border-radius: 50%;
+      background: var(--dot-colour);
+    }
+
+    .remove {
+      font: inherit;
+      line-height: 1;
+      width: 1.75rem;
+      height: 1.75rem;
+      color: var(--muted);
+      background: none;
+      border: 0;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .remove:hover { background: var(--background); color: var(--ink); }
+
+    .hint { color: var(--muted); margin: 0 0 1rem; }
+
+    .go {
+      font: inherit;
+      font-weight: 700;
+      padding: 0.8rem 1.5rem;
+      color: #FFFFFF;
+      background: var(--ink);
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .go:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+
+    .error { color: var(--error); font-weight: 700; }
+
+    .results { padding-left: 1.75rem; margin: 0; }
+
+    .results li { padding: 0.9rem 0; border-bottom: 1px solid var(--line); }
+
+    .results li::marker { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 600; color: var(--muted); }
+
+    .results a { color: var(--ink); font-weight: 700; text-decoration-color: var(--line); text-underline-offset: 3px; }
+
+    .results a:hover { color: var(--link); text-decoration-color: var(--link); }
+
+    .details { color: var(--muted); }
+
+    .reason { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.2rem; }
+
+    .reason .dot { transform: translateY(0.05rem); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Find your next game</h1>
+    <p class="intro">
+      Pick 3 to 5 Steam games you enjoyed. You'll get 10 suggestions, each with the reason it was picked,
+      based on 41 million player reviews and the games' community tags.
+    </p>
+
+    <div class="search">
+      <label for="query">Search for a game you liked</label>
+      <input id="query" type="search" placeholder="e.g. Hollow Knight" autocomplete="off">
+      <ul id="matches" class="matches" aria-label="Matching games"></ul>
+    </div>
+
+    <ul id="seeds" class="seeds" aria-label="Games you picked"></ul>
+    <p id="hint" class="hint"></p>
+    <button id="go" class="go" disabled>Recommend games</button>
+
+    <p id="error" class="error" role="alert"></p>
+
+    <section id="results-section" hidden>
+      <h2>You might like</h2>
+      <ol id="results" class="results"></ol>
+    </section>
+  </main>
+
+  <script>
+    const MIN_GAMES = 3;
+    const MAX_GAMES = 5;
+    const SEED_COLOURS = ["--seed-1", "--seed-2", "--seed-3", "--seed-4", "--seed-5"];
+
+    // The games picked so far: [{app_id, title, release_year, colour}, ...]
+    let seeds = [];
+    let searchTimer = null;
+
+    const queryInput = document.getElementById("query");
+    const matchesList = document.getElementById("matches");
+    const seedsList = document.getElementById("seeds");
+    const hint = document.getElementById("hint");
+    const goButton = document.getElementById("go");
+    const errorText = document.getElementById("error");
+    const resultsSection = document.getElementById("results-section");
+    const resultsList = document.getElementById("results");
+
+    // Build an element with optional class and text. textContent (not innerHTML) so game titles
+    // can never be interpreted as HTML.
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function colourDot(colourVariable) {
+      const dot = element("span", "dot");
+      dot.style.setProperty("--dot-colour", `var(${colourVariable})`);
+      return dot;
+    }
+
+    // The first colour not used by a current seed, so removing a game frees its colour.
+    function nextFreeColour() {
+      const used = seeds.map((seed) => seed.colour);
+      return SEED_COLOURS.find((colour) => !used.includes(colour));
+    }
+
+    function renderSeeds() {
+      seedsList.replaceChildren();
+      for (const seed of seeds) {
+        const chip = element("li", "seed");
+        chip.append(colourDot(seed.colour), element("span", null, seed.title));
+        const remove = element("button", "remove", "×");
+        remove.setAttribute("aria-label", `Remove ${seed.title}`);
+        remove.addEventListener("click", () => {
+          seeds = seeds.filter((other) => other.app_id !== seed.app_id);
+          renderSeeds();
+        });
+        chip.append(remove);
+        seedsList.append(chip);
+      }
+
+      const missing = MIN_GAMES - seeds.length;
+      if (missing > 0) {
+        hint.textContent = `Pick ${missing} more game${missing === 1 ? "" : "s"} to get recommendations.`;
+      } else if (seeds.length === MAX_GAMES) {
+        hint.textContent = "That's the maximum of 5 games.";
+      } else {
+        hint.textContent = "You can add up to 5 games.";
+      }
+      goButton.disabled = seeds.length < MIN_GAMES;
+      queryInput.disabled = seeds.length >= MAX_GAMES;
+    }
+
+    function addSeed(game) {
+      if (seeds.length >= MAX_GAMES) return;
+      if (seeds.some((seed) => seed.app_id === game.app_id)) return;
+      seeds.push({ ...game, colour: nextFreeColour() });
+      queryInput.value = "";
+      matchesList.replaceChildren();
+      renderSeeds();
+      queryInput.focus();
+    }
+
+    async function searchGames(query) {
+      const response = await fetch(`/search?q=${encodeURIComponent(query)}&limit=8`);
+      if (!response.ok) return;
+      const games = await response.json();
+
+      matchesList.replaceChildren();
+      for (const game of games) {
+        const option = element("button");
+        option.type = "button";
+        option.append(element("span", null, `${game.title} `), element("span", "year", `(${game.release_year})`));
+        option.addEventListener("click", () => addSeed(game));
+        const item = element("li");
+        item.append(option);
+        matchesList.append(item);
+      }
+    }
+
+    // Wait until typing pauses for 250 ms before searching, instead of one request per key press.
+    queryInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const query = queryInput.value.trim();
+      if (query.length < 2) {
+        matchesList.replaceChildren();
+        return;
+      }
+      searchTimer = setTimeout(() => searchGames(query), 250);
+    });
+
+    function renderResults(recommendations) {
+      resultsList.replaceChildren();
+      for (const rec of recommendations) {
+        const item = element("li");
+
+        const link = element("a", null, rec.title);
+        link.href = `https://store.steampowered.com/app/${rec.app_id}`;
+        link.target = "_blank";
+        link.rel = "noopener";
+        const price = rec.price === 0 ? "Free" : `$${rec.price.toFixed(2)}`;
+        item.append(link, element("span", "details", `, ${rec.release_year}, ${price}`));
+
+        // The dot takes the colour of the seed game this recommendation came from.
+        const seed = seeds.find((s) => s.app_id === rec.reason.seed_app_id);
+        const reason = element("div", "reason");
+        reason.append(colourDot(seed ? seed.colour : "--muted"), element("span", null, rec.reason.text));
+        item.append(reason);
+
+        resultsList.append(item);
+      }
+      resultsSection.hidden = false;
+    }
+
+    goButton.addEventListener("click", async () => {
+      errorText.textContent = "";
+      goButton.disabled = true;
+      goButton.textContent = "Finding games…";
+      try {
+        const response = await fetch("/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app_ids: seeds.map((seed) => seed.app_id) }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          errorText.textContent = `Couldn't get recommendations: ${JSON.stringify(body.detail)}`;
+          return;
+        }
+        if (body.recommendations.length === 0) {
+          errorText.textContent = "No recommendations for these games. Try adding a more popular game.";
+          return;
+        }
+        renderResults(body.recommendations);
+      } catch (error) {
+        errorText.textContent = "The server didn't respond. Check that it's running and try again.";
+      } finally {
+        goButton.textContent = "Recommend games";
+        goButton.disabled = seeds.length < MIN_GAMES;
+      }
+    });
+
+    renderSeeds();
+  </script>
+</body>
+</html>

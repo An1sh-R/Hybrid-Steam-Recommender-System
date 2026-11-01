@@ -61,3 +61,11 @@ def test_recommend_rejects_unknown_games(client):
 
     assert response.status_code == 422
     assert "999" in response.json()["detail"]
+
+
+def test_home_page_is_served(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Find your next game" in response.text
