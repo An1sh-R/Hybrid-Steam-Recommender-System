@@ -11,7 +11,8 @@ Training data comes from the val period only (the test period stays untouched):
 LambdaRank: gradient-boosted trees trained to put each user's positives above their negatives,
 directly optimising NDCG.
 
-Outputs: models/ranker.txt (the LightGBM model) and metrics/ranker_val.json.
+Outputs: models/ranker.txt (the LightGBM model), metrics/ranker_val.json, and the ranked top 200
+of the held-out users (data/ranker/val_eval_ranked.parquet, used by the re-ranking stage).
 Run with: uv run python -m steam_rec.ranker
 """
 
@@ -32,6 +33,7 @@ from steam_rec.split import RANDOM_SEED, SPLIT_DIR, TEST_CUTOFF, VAL_CUTOFF
 
 MODEL_PATH = PROJECT_ROOT / "models" / "ranker.txt"
 METRICS_PATH = PROJECT_ROOT / "metrics" / "ranker_val.json"
+RANKED_PATH = PROJECT_ROOT / "data" / "ranker" / "val_eval_ranked.parquet"
 
 FEATURES = [
     "cooc_score",
@@ -173,6 +175,7 @@ def ranker(
     content_dir: Path = CONTENT_DIR,
     model_path: Path = MODEL_PATH,
     metrics_path: Path = METRICS_PATH,
+    ranked_path: Path = RANKED_PATH,
 ) -> None:
     """Train the ranker on 80% of val users, score it on the other 20%, save model and metrics."""
     reviews = pd.read_parquet(processed_dir / "reviews.parquet")
@@ -220,6 +223,11 @@ def ranker(
     for feature, gain in zip(FEATURES, gains):
         importance[feature] = float(gain / gains.sum())
     results["feature_importance"] = importance
+
+    # Save the held-out users' ranked lists, with popularity, for the re-ranking stage.
+    ranked = methods["ranker"].merge(eval_candidates[["user_id", "app_id", "log_likes"]], on=["user_id", "app_id"])
+    ranked_path.parent.mkdir(parents=True, exist_ok=True)
+    ranked.to_parquet(ranked_path, index=False)
 
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model.booster_.save_model(str(model_path))

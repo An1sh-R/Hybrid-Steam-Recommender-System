@@ -64,6 +64,21 @@ stages:
       - src/steam_rec/ranker.py
     outs:
       - models/ranker.txt
+      - data/ranker/val_eval_ranked.parquet
     metrics:
       - metrics/ranker_val.json:
+          cache: false
+
+  rerank:
+    cmd: uv run python -m steam_rec.rerank
+    deps:
+      - data/processed/reviews.parquet
+      - data/processed/catalog.parquet
+      - data/split/val_targets.parquet
+      - data/ranker/val_eval_ranked.parquet
+      - src/steam_rec/content.py
+      - src/steam_rec/evaluate.py
+      - src/steam_rec/rerank.py
+    metrics:
+      - metrics/rerank_val.json:
           cache: false
