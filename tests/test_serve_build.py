@@ -47,7 +47,7 @@ def test_serve_build_uses_reviews_up_to_the_last_day(tmp_path):
 
     neighbors = pd.read_parquet(out_dir / "cooc_neighbors.parquet")
     features = pd.read_parquet(out_dir / "game_features.parquet").set_index("app_id")
-    assert sorted(zip(neighbors["app_id"], neighbors["neighbor_id"])) == [(1, 2), (2, 1)]
+    assert sorted(zip(neighbors["app_id"], neighbors["neighbor_id"], strict=True)) == [(1, 2), (2, 1)]
     # Game 2's likes on 2022-12-31 count, and game 3 (no reviews) still gets features.
     assert features.loc[2, "log_likes"] > 0
     assert features.loc[3, "log_likes"] == 0

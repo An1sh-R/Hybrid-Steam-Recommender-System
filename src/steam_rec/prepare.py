@@ -32,10 +32,10 @@ def load_steamspy_tags(path: Path = STEAMSPY_TAGS_PATH) -> pd.DataFrame:
 
 def fill_missing_tags(meta: pd.DataFrame, steamspy_tags: pd.DataFrame) -> pd.DataFrame:
     """Replace empty tag lists in `meta` with SteamSpy's tags for the same game, where available."""
-    steamspy_by_app = dict(zip(steamspy_tags["app_id"], steamspy_tags["tags"]))
+    steamspy_by_app = dict(zip(steamspy_tags["app_id"], steamspy_tags["tags"], strict=True))
 
     filled_tags = []
-    for app_id, tags in zip(meta["app_id"], meta["tags"]):
+    for app_id, tags in zip(meta["app_id"], meta["tags"], strict=True):
         if len(tags) == 0 and app_id in steamspy_by_app:
             filled_tags.append(list(steamspy_by_app[app_id]))
         else:
@@ -69,7 +69,7 @@ def prepare(
     reviews.to_parquet(out_dir / "reviews.parquet", index=False)
 
     games_without_tags = (catalog["tags"].str.len() == 0).sum()
-    print(f"catalog: {len(catalog):,} games ({games_without_tags:,} still without tags) -> {out_dir / 'catalog.parquet'}")
+    print(f"catalog: {len(catalog):,} games ({games_without_tags:,} still without tags)")
     print(f"reviews: {len(reviews):,} rows -> {out_dir / 'reviews.parquet'}")
 
 

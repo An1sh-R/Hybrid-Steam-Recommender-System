@@ -11,9 +11,9 @@ Interactive docs (try the endpoints in a browser): http://127.0.0.1:8000/docs
 Run with: uv run uvicorn steam_rec.api:app --reload
 """
 
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Callable
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -108,7 +108,7 @@ def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
         try:
             recommendations = recommend(request.app_ids, app.state.artifacts)
         except ValueError as error:
-            raise HTTPException(status_code=422, detail=str(error))
+            raise HTTPException(status_code=422, detail=str(error)) from error
         return {"recommendations": recommendations}
 
     return app

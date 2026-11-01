@@ -124,7 +124,9 @@ def score_setting(recs, targets, like_counts, n_catalog, tfidf, row_of_app) -> d
     }
 
 
-def choose_setting(results: dict[str, dict[str, float]], baseline_ndcg: float, objective: str, lower_is_better: bool) -> str:
+def choose_setting(
+    results: dict[str, dict[str, float]], baseline_ndcg: float, objective: str, lower_is_better: bool
+) -> str:
     """Name of the setting with the best `objective` among those keeping NDCG@10 >= (1 - MAX_NDCG_LOSS) x baseline."""
     min_ndcg = (1 - MAX_NDCG_LOSS) * baseline_ndcg
     best_name, best_value = None, None

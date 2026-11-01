@@ -47,7 +47,8 @@ def final_evaluation(
 ) -> None:
     """Score every method once on the test users and write metrics/test.json."""
     reviews = pd.read_parquet(processed_dir / "reviews.parquet")
-    catalog = pd.read_parquet(processed_dir / "catalog.parquet", columns=["app_id", "price_final", "date_release", "tags"])
+    catalog_columns = ["app_id", "price_final", "date_release", "tags"]
+    catalog = pd.read_parquet(processed_dir / "catalog.parquet", columns=catalog_columns)
     seeds = pd.read_parquet(split_dir / "test_seeds.parquet")
     targets = pd.read_parquet(split_dir / "test_targets.parquet")
     cooc_neighbors = pd.read_parquet(cooccurrence_dir / "test_neighbors.parquet")

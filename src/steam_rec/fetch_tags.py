@@ -15,8 +15,8 @@ Run with: uv run python -m steam_rec.fetch_tags
 import json
 import time
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pandas as pd
 

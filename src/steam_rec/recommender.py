@@ -40,7 +40,9 @@ class Artifacts:
     max_log_likes: float
 
 
-def load_artifacts(serve_dir: Path = SERVE_DIR, content_dir: Path = CONTENT_DIR, model_path: Path = MODEL_PATH) -> Artifacts:
+def load_artifacts(
+    serve_dir: Path = SERVE_DIR, content_dir: Path = CONTENT_DIR, model_path: Path = MODEL_PATH
+) -> Artifacts:
     """Read the serving files and the ranker model from disk."""
     game_features = pd.read_parquet(serve_dir / "game_features.parquet")
     return Artifacts(
@@ -98,7 +100,9 @@ def score_and_rerank(
     return ranked, final
 
 
-def recommend(seed_ids: list[int], artifacts: Artifacts, n: int = N_RECOMMENDATIONS, alpha: float = ALPHA) -> list[dict]:
+def recommend(
+    seed_ids: list[int], artifacts: Artifacts, n: int = N_RECOMMENDATIONS, alpha: float = ALPHA
+) -> list[dict]:
     """Recommend `n` games for someone who liked the games in `seed_ids`, each with an explanation."""
     games_by_id = artifacts.games.set_index("app_id")
     unknown = []

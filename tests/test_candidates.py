@@ -20,7 +20,7 @@ def test_remove_seeds_only_drops_that_users_seeds():
     kept = remove_seeds(candidates, seeds)
 
     # Game 10 is user 1's seed, but still a valid candidate for user 2.
-    assert list(zip(kept["user_id"], kept["app_id"])) == [(1, 20), (2, 10)]
+    assert list(zip(kept["user_id"], kept["app_id"], strict=True)) == [(1, 20), (2, 10)]
 
 
 def test_keep_top_n_sorts_by_score_breaks_ties_by_app_id_and_ranks():

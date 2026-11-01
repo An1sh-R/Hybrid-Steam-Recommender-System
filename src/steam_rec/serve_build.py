@@ -26,7 +26,9 @@ SERVE_DIR = PROJECT_ROOT / "data" / "serve"
 # The last review is on 2022-12-31, so "before 2023-01-01" means all of them.
 FULL_CUTOFF = pd.Timestamp("2023-01-01")
 
-GAME_COLUMNS = ["app_id", "title", "release_year", "tags", "is_non_game", "price_final", "positive_ratio", "user_reviews"]
+GAME_COLUMNS = [
+    "app_id", "title", "release_year", "tags", "is_non_game", "price_final", "positive_ratio", "user_reviews",
+]
 
 
 def serving_games(catalog: pd.DataFrame) -> pd.DataFrame:

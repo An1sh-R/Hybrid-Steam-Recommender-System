@@ -62,12 +62,16 @@ RANKER_PARAMS = {
 }
 
 
-def build_candidates(seeds: pd.DataFrame, cooc_neighbors: pd.DataFrame, content_neighbors: pd.DataFrame) -> pd.DataFrame:
+def build_candidates(
+    seeds: pd.DataFrame, cooc_neighbors: pd.DataFrame, content_neighbors: pd.DataFrame
+) -> pd.DataFrame:
     """Union of both retrievers' top candidates per user, with each retriever's score and rank."""
     cooc = recommend_from_neighbors(seeds, cooc_neighbors)
     cooc = cooc.rename(columns={"score": "cooc_score", "rank": "cooc_rank", "best_seed": "cooc_best_seed"})
     content = recommend_from_neighbors(seeds, content_neighbors)
-    content = content.rename(columns={"score": "content_score", "rank": "content_rank", "best_seed": "content_best_seed"})
+    content = content.rename(
+        columns={"score": "content_score", "rank": "content_rank", "best_seed": "content_best_seed"}
+    )
 
     # Outer merge: keep a candidate if either retriever found it.
     candidates = cooc.merge(content, on=["user_id", "app_id"], how="outer")
@@ -117,7 +121,9 @@ def split_users(
     return np.sort(shuffled[n_eval:]), np.sort(shuffled[:n_eval])
 
 
-def sample_negatives(table: pd.DataFrame, n_negatives: int = NEGATIVES_PER_USER, random_seed: int = RANDOM_SEED) -> pd.DataFrame:
+def sample_negatives(
+    table: pd.DataFrame, n_negatives: int = NEGATIVES_PER_USER, random_seed: int = RANDOM_SEED
+) -> pd.DataFrame:
     """Keep every positive and up to `n_negatives` random negatives per user; drop users with no positive."""
     positives_per_user = table.groupby("user_id")["label"].sum()
     users_with_positive = positives_per_user[positives_per_user > 0].index
@@ -215,11 +221,12 @@ def ranker(
         method_results = evaluate_recommendations(recs, eval_targets)
         method_results["beyond"] = beyond_accuracy(recs, like_counts, len(catalog))
         results[name] = method_results
-        print(f"{name:13s} recall@10 {method_results['all']['recall@10']:.4f}  ndcg@10 {method_results['all']['ndcg@10']:.4f}")
+        all_targets = method_results["all"]
+        print(f"{name:13s} recall@10 {all_targets['recall@10']:.4f}  ndcg@10 {all_targets['ndcg@10']:.4f}")
 
     gains = model.booster_.feature_importance(importance_type="gain")
     importance = {}
-    for feature, gain in zip(FEATURES, gains):
+    for feature, gain in zip(FEATURES, gains, strict=True):
         importance[feature] = float(gain / gains.sum())
     results["feature_importance"] = importance
 
