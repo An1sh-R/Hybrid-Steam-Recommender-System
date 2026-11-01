@@ -1,4 +1,5 @@
-# CI: install the locked environment, lint the code, run the test suite.
+# CI: install the locked environment, lint the code, run the test suite,
+# then build the Docker image and check the container really serves recommendations.
 # Runs on every pull request and on every push to main.
 
 name: CI
@@ -29,3 +30,46 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  docker:
+    # Only build the image once lint and tests have passed.
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies from uv.lock (includes DVC)
+        run: uv sync --locked
+
+      - name: Pull only the serving files from DagsHub
+        # DagsHub's S3 endpoint takes the access token as both the key id and the secret key.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+        run: uv run dvc pull data/serve data/content/neighbors.parquet models/ranker.txt
+
+      - name: Build the image
+        run: docker build -t steam-rec .
+
+      - name: Start the container and wait until it is healthy
+        run: |
+          docker run -d --name steam-rec -p 8000:8000 steam-rec
+          curl --fail --silent --retry 20 --retry-delay 3 --retry-all-errors http://127.0.0.1:8000/health
+
+      - name: Ask for recommendations
+        # Witcher 3, Cyberpunk 2077, Skyrim Special Edition.
+        run: |
+          curl --fail --silent -X POST http://127.0.0.1:8000/recommend \
+            -H "Content-Type: application/json" \
+            -d '{"app_ids": [292030, 1091500, 489830]}'
+
+      - name: Show the container's logs if anything failed
+        if: failure()
+        run: docker logs steam-rec
