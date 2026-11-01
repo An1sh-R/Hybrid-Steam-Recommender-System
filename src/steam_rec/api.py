@@ -4,7 +4,8 @@ Endpoints:
 - GET  /                       -> the web page (static/index.html)
 - GET  /health                 -> {"status": "ok"}, for Docker / hosting health checks
 - GET  /search?q=hollow        -> games whose title contains the text, most-reviewed first
-- POST /recommend              -> body {"app_ids": [3 to 5 different games]}; 10 games with reasons
+- POST /recommend              -> body {"app_ids": [3 to 5 different games]}; the top 10 games, plus
+                                  5 more from each retriever (similar tags, players also liked), with reasons
 
 The model files are loaded once when the server starts, not on every request.
 Interactive docs (try the endpoints in a browser): http://127.0.0.1:8000/docs
@@ -67,9 +68,11 @@ class RecommendRequest(BaseModel):
 
 
 class RecommendResponse(BaseModel):
-    """The list of recommendations, best first."""
+    """The top recommendations (best first), then one extra row per retriever (D32)."""
 
     recommendations: list[Recommendation]
+    similar_tags: list[Recommendation]
+    players_also_liked: list[Recommendation]
 
 
 def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
@@ -104,12 +107,12 @@ def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
 
     @app.post("/recommend", response_model=RecommendResponse)
     def recommend_games(request: RecommendRequest) -> dict:
-        """10 games for someone who liked `app_ids`, each with a reason."""
+        """The top 10 games for someone who liked `app_ids`, plus a row of 5 from each retriever."""
         try:
-            recommendations = recommend(request.app_ids, app.state.artifacts)
+            result = recommend(request.app_ids, app.state.artifacts)
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
-        return {"recommendations": recommendations}
+        return result
 
     return app
 

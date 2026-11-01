@@ -1,4 +1,4 @@
-"""Turn a few games a person liked into 10 recommendations with explanations (decisions D11, D27-D29).
+"""Turn a few games a person liked into recommendations with explanations (decisions D11, D27-D29, D32).
 
 The same steps that were evaluated, for one person:
 1. both retrievers propose candidates from the seed games (`build_candidates`)
@@ -7,6 +7,10 @@ The same steps that were evaluated, for one person:
 4. explain each one with the retriever that ranked it higher:
    - co-occurrence: "Players who liked X also liked this"
    - content:       "Because you liked X: shares tag1, tag2, tag3"
+
+Then two extra rows of 5 (D32), each straight from one retriever's own order, so the page can show
+what each retriever found on its own: "similar tags" (content) and "players also liked"
+(co-occurrence). A game appears at most once on the page: each row skips games already shown above it.
 
 Also `search_games` for finding a game by title, and `load_artifacts` to read data/serve etc.
 """
@@ -19,12 +23,13 @@ import pandas as pd
 
 from steam_rec.candidates import TOP_N, keep_top_n
 from steam_rec.content import CONTENT_DIR
-from steam_rec.ranker import FEATURES, MODEL_PATH, build_candidates
+from steam_rec.ranker import FEATURES, MISSING_RANK, MODEL_PATH, build_candidates
 from steam_rec.rerank import popularity_penalty
 from steam_rec.serve_build import SERVE_DIR
 
 ALPHA = 0.3
 N_RECOMMENDATIONS = 10
+ROW_SIZE = 5
 N_SHARED_TAGS = 3
 
 
@@ -63,15 +68,16 @@ def search_games(query: str, games: pd.DataFrame, limit: int = 10) -> pd.DataFra
     return found.head(limit)[["app_id", "title", "release_year"]]
 
 
-def explain(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
-    """The reason for one recommendation: which seed led to it, and why."""
-    # The retriever that ranked the game higher explains it; on a tie, co-occurrence.
-    if row["cooc_rank"] <= row["content_rank"]:
-        seed_id = int(row["cooc_best_seed"])
-        seed_title = games_by_id.loc[seed_id, "title"]
-        return {"type": "players_also_liked", "seed_app_id": seed_id, "shared_tags": [],
-                "text": f"Players who liked {seed_title} also liked this"}
+def explain_players_also_liked(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
+    """The co-occurrence reason: the seed whose players liked this game most."""
+    seed_id = int(row["cooc_best_seed"])
+    seed_title = games_by_id.loc[seed_id, "title"]
+    return {"type": "players_also_liked", "seed_app_id": seed_id, "shared_tags": [],
+            "text": f"Players who liked {seed_title} also liked this"}
 
+
+def explain_similar_tags(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
+    """The content reason: the most similar seed and up to 3 tags the two games share."""
     seed_id = int(row["content_best_seed"])
     seed_title = games_by_id.loc[seed_id, "title"]
     seed_tags = set(games_by_id.loc[seed_id, "tags"])
@@ -89,6 +95,34 @@ def explain(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
     return {"type": "similar_tags", "seed_app_id": seed_id, "shared_tags": shared_tags, "text": text}
 
 
+def explain(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
+    """The reason for one top-10 recommendation: the retriever that ranked it higher explains it."""
+    # On a tie, co-occurrence.
+    if row["cooc_rank"] <= row["content_rank"]:
+        return explain_players_also_liked(row, games_by_id)
+    return explain_similar_tags(row, games_by_id)
+
+
+def game_card(app_id: int, games_by_id: pd.DataFrame, reason: dict) -> dict:
+    """One recommended game as the API returns it: id, title, year, price and the reason."""
+    game = games_by_id.loc[app_id]
+    return {
+        "app_id": int(app_id),
+        "title": game["title"],
+        "release_year": int(game["release_year"]),
+        "price": float(game["price_final"]),
+        "reason": reason,
+    }
+
+
+def retriever_row(candidates: pd.DataFrame, rank_column: str, shown_ids: list[int], size: int) -> pd.DataFrame:
+    """One retriever's best `size` candidates, in its own order, skipping games already shown."""
+    # MISSING_RANK marks candidates this retriever didn't find (only the other one did).
+    found = candidates[candidates[rank_column] < MISSING_RANK]
+    found = found[~found["app_id"].isin(shown_ids)]
+    return found.sort_values(rank_column).head(size)
+
+
 def score_and_rerank(
     candidates: pd.DataFrame, model: lgb.Booster, max_log_likes: float, alpha: float = ALPHA
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -101,9 +135,17 @@ def score_and_rerank(
 
 
 def recommend(
-    seed_ids: list[int], artifacts: Artifacts, n: int = N_RECOMMENDATIONS, alpha: float = ALPHA
-) -> list[dict]:
-    """Recommend `n` games for someone who liked the games in `seed_ids`, each with an explanation."""
+    seed_ids: list[int],
+    artifacts: Artifacts,
+    n: int = N_RECOMMENDATIONS,
+    alpha: float = ALPHA,
+    row_size: int = ROW_SIZE,
+) -> dict:
+    """Recommend games for someone who liked `seed_ids`: the top `n` plus one row per retriever.
+
+    Returns {"recommendations": [...], "similar_tags": [...], "players_also_liked": [...]},
+    each a list of games with a reason.
+    """
     games_by_id = artifacts.games.set_index("app_id")
     unknown = []
     for app_id in seed_ids:
@@ -112,32 +154,41 @@ def recommend(
     if unknown:
         raise ValueError(f"unknown app_ids: {unknown}")
 
+    result = {"recommendations": [], "similar_tags": [], "players_also_liked": []}
+
     # One "user" (id 0) with these seeds. Only the seeds' neighbour rows are needed.
     seeds = pd.DataFrame({"user_id": 0, "app_id": seed_ids})
     cooc = artifacts.cooc_neighbors[artifacts.cooc_neighbors["app_id"].isin(seed_ids)]
     content = artifacts.content_neighbors[artifacts.content_neighbors["app_id"].isin(seed_ids)]
     candidates = build_candidates(seeds, cooc, content)
-    if len(candidates) == 0:
-        return []
 
     # Never recommend soundtracks / DLC (D10), whichever retriever found them.
     non_game_ids = artifacts.games.loc[artifacts.games["is_non_game"], "app_id"]
     candidates = candidates[~candidates["app_id"].isin(non_game_ids)]
+    if len(candidates) == 0:
+        return result
 
-    candidates = candidates.merge(artifacts.game_features, on="app_id", how="left")
-    ranked, final = score_and_rerank(candidates, artifacts.model, artifacts.max_log_likes, alpha)
+    # The top n: ranker + popularity penalty, exactly as evaluated.
+    with_features = candidates.merge(artifacts.game_features, on="app_id", how="left")
+    ranked, final = score_and_rerank(with_features, artifacts.model, artifacts.max_log_likes, alpha)
     final = final.head(n)
     # Bring back the candidate columns (ranks, best seeds) that the explanation needs.
     final = final[["app_id", "rank"]].merge(ranked.drop(columns=["score", "rank"]), on="app_id")
-
-    recommendations = []
     for _, row in final.sort_values("rank").iterrows():
-        game = games_by_id.loc[row["app_id"]]
-        recommendations.append({
-            "app_id": int(row["app_id"]),
-            "title": game["title"],
-            "release_year": int(game["release_year"]),
-            "price": float(game["price_final"]),
-            "reason": explain(row, games_by_id),
-        })
-    return recommendations
+        result["recommendations"].append(game_card(row["app_id"], games_by_id, explain(row, games_by_id)))
+
+    # The extra rows, each from one retriever. Every game shown so far is skipped.
+    shown_ids = []
+    for rec in result["recommendations"]:
+        shown_ids.append(rec["app_id"])
+
+    for _, row in retriever_row(candidates, "content_rank", shown_ids, row_size).iterrows():
+        result["similar_tags"].append(game_card(row["app_id"], games_by_id, explain_similar_tags(row, games_by_id)))
+        shown_ids.append(int(row["app_id"]))
+
+    for _, row in retriever_row(candidates, "cooc_rank", shown_ids, row_size).iterrows():
+        reason = explain_players_also_liked(row, games_by_id)
+        result["players_also_liked"].append(game_card(row["app_id"], games_by_id, reason))
+        shown_ids.append(int(row["app_id"]))
+
+    return result

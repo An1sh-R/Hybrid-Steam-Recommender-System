@@ -45,6 +45,9 @@ def test_recommend_returns_games_with_reasons(client):
     titles = [rec["title"] for rec in recommendations]
     assert sorted(titles) == ["Dead Cells", "Ori"]
     assert recommendations[0]["reason"]["text"].startswith("Because you liked")
+    # Every candidate already made the top list, so both extra rows are empty (but present).
+    assert response.json()["similar_tags"] == []
+    assert response.json()["players_also_liked"] == []
 
 
 @pytest.mark.parametrize("app_ids", [

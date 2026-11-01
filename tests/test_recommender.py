@@ -14,8 +14,13 @@ def test_search_is_case_insensitive_skips_non_games_and_puts_popular_first(toy_a
     assert found["title"].tolist() == ["Hades", "Dead Cells", "Celeste"]
 
 
+def top_titles(result):
+    """The titles of the top recommendations, in order."""
+    return [rec["title"] for rec in result["recommendations"]]
+
+
 def test_recommend_never_returns_seeds_or_non_games(toy_artifacts):
-    recs = recommend([1, 2], toy_artifacts)
+    recs = recommend([1, 2], toy_artifacts)["recommendations"]
     app_ids = [rec["app_id"] for rec in recs]
 
     assert 1 not in app_ids and 2 not in app_ids
@@ -24,14 +29,14 @@ def test_recommend_never_returns_seeds_or_non_games(toy_artifacts):
 
 
 def test_recommend_orders_by_ranker_score_with_alpha_zero(toy_artifacts):
-    recs = recommend([1, 2], toy_artifacts, alpha=0.0)
+    result = recommend([1, 2], toy_artifacts, alpha=0.0)
 
     # Fake scores: Dead Cells 0.05 + 1.3 = 1.35, Ori 0.9, Celeste 0.10.
-    assert [rec["title"] for rec in recs] == ["Dead Cells", "Ori", "Celeste"]
+    assert top_titles(result) == ["Dead Cells", "Ori", "Celeste"]
 
 
 def test_explanations_come_from_the_retriever_that_ranked_the_game_higher(toy_artifacts):
-    recs = {rec["title"]: rec["reason"] for rec in recommend([1, 2], toy_artifacts)}
+    recs = {rec["title"]: rec["reason"] for rec in recommend([1, 2], toy_artifacts)["recommendations"]}
 
     # Celeste was only found by co-occurrence.
     assert recs["Celeste"]["type"] == "players_also_liked"
@@ -49,10 +54,46 @@ def test_explanations_come_from_the_retriever_that_ranked_the_game_higher(toy_ar
 
 
 def test_recommend_respects_n_and_rejects_unknown_games(toy_artifacts):
-    assert len(recommend([1, 2], toy_artifacts, n=2)) == 2
+    assert len(recommend([1, 2], toy_artifacts, n=2)["recommendations"]) == 2
 
     with pytest.raises(ValueError):
         recommend([1, 999], toy_artifacts)
+
+
+def test_rows_skip_games_already_in_the_top_n(toy_artifacts):
+    # Only 3 real candidates, and all of them make the top 10, so the rows have nothing left.
+    result = recommend([1, 2], toy_artifacts)
+    assert result["similar_tags"] == []
+    assert result["players_also_liked"] == []
+
+    # With a top 1 (Dead Cells), each row gets the game only its retriever found.
+    result = recommend([1, 2], toy_artifacts, n=1, alpha=0.0)
+    assert top_titles(result) == ["Dead Cells"]
+    assert [rec["title"] for rec in result["similar_tags"]] == ["Ori"]
+    assert [rec["title"] for rec in result["players_also_liked"]] == ["Celeste"]
+
+
+def test_rows_use_their_own_retriever_order_reason_and_skip_each_other(toy_artifacts):
+    # No top list at all, so the rows are filled straight from the two retrievers.
+    result = recommend([1, 2], toy_artifacts, n=0)
+    similar = result["similar_tags"]
+    also_liked = result["players_also_liked"]
+
+    # Content order: Dead Cells (content rank 1), then Ori.
+    assert [rec["title"] for rec in similar] == ["Dead Cells", "Ori"]
+    for rec in similar:
+        assert rec["reason"]["type"] == "similar_tags"
+
+    # Dead Cells was found by both retrievers but is already in the row above, so it's skipped here;
+    # the soundtrack is never shown.
+    assert [rec["title"] for rec in also_liked] == ["Celeste"]
+    assert also_liked[0]["reason"]["type"] == "players_also_liked"
+
+
+def test_row_size_limits_each_row(toy_artifacts):
+    result = recommend([1, 2], toy_artifacts, n=0, row_size=1)
+    assert [rec["title"] for rec in result["similar_tags"]] == ["Dead Cells"]
+    assert [rec["title"] for rec in result["players_also_liked"]] == ["Celeste"]
 
 
 def test_score_and_rerank_ranks_every_candidate_then_penalises_to_top_10(toy_artifacts):
