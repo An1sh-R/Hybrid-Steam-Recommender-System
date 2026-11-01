@@ -1,0 +1,11 @@
+# Files Docker may send to the build (decision D34).
+# Whitelist: ignore everything, then allow only what the Dockerfile copies. Without this, every
+# build would upload the 2GB of raw data and the DVC cache to Docker.
+*
+!pyproject.toml
+!uv.lock
+!src
+!data/serve
+!data/content/neighbors.parquet
+!models/ranker.txt
+**/__pycache__

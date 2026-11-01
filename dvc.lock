@@ -19,8 +19,8 @@ stages:
       size: 2511
     - path: src/steam_rec/prepare.py
       hash: md5
-      md5: 18f06abd95f77b35b25ca2bee8073a12
-      size: 2664
+      md5: 4f8ed2d5074d02e04749036ea02435aa
+      size: 2734
     outs:
     - path: data/processed
       hash: md5
@@ -93,12 +93,12 @@ stages:
       nfiles: 4
     - path: src/steam_rec/candidates.py
       hash: md5
-      md5: 70ac4feee9c30c461447ab6062487e3f
-      size: 2408
+      md5: 31202988aee66c7a5eac4c0228ca1d8c
+      size: 2746
     - path: src/steam_rec/evaluate.py
       hash: md5
-      md5: 8d1125f35ece310c54684a16d550201b
-      size: 6751
+      md5: 0858445cb2614f62c854881fb66062c3
+      size: 6828
     outs:
     - path: metrics/retrieval_val.json
       hash: md5
@@ -121,3 +121,179 @@ stages:
       md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
       size: 30575341
       nfiles: 1
+  ranker:
+    cmd: uv run python -m steam_rec.ranker
+    deps:
+    - path: data/content
+      hash: md5
+      md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
+      size: 30575341
+      nfiles: 1
+    - path: data/cooccurrence
+      hash: md5
+      md5: 8d69cb8426c48a17d56541bdc1bd484a.dir
+      size: 29129888
+      nfiles: 2
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: data/split
+      hash: md5
+      md5: 0ae1135cfc1894542999e5814915be82.dir
+      size: 3052829
+      nfiles: 4
+    - path: src/steam_rec/candidates.py
+      hash: md5
+      md5: 31202988aee66c7a5eac4c0228ca1d8c
+      size: 2746
+    - path: src/steam_rec/evaluate.py
+      hash: md5
+      md5: 0858445cb2614f62c854881fb66062c3
+      size: 6828
+    - path: src/steam_rec/ranker.py
+      hash: md5
+      md5: 2abb10b4d4737ae54e1e081f12f32224
+      size: 11528
+    outs:
+    - path: data/ranker/val_eval_ranked.parquet
+      hash: md5
+      md5: 30fe8fd7b165663bb2ab1fa4bfd87e1a
+      size: 22839193
+    - path: metrics/ranker_val.json
+      hash: md5
+      md5: 25ab61fc7275aeb06668005924a2cbd7
+      size: 2396
+    - path: models/ranker.txt
+      hash: md5
+      md5: 2880aa7be480da571714aba980088fd5
+      size: 1056209
+  rerank:
+    cmd: uv run python -m steam_rec.rerank
+    deps:
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: data/ranker/val_eval_ranked.parquet
+      hash: md5
+      md5: 30fe8fd7b165663bb2ab1fa4bfd87e1a
+      size: 22839193
+    - path: data/split/val_targets.parquet
+      hash: md5
+      md5: 0ee441650e08350e719bfd2da6dd7ac9
+      size: 600899
+    - path: src/steam_rec/content.py
+      hash: md5
+      md5: 26dceb0e50353bf0698b51f7bc017189
+      size: 3900
+    - path: src/steam_rec/evaluate.py
+      hash: md5
+      md5: 0858445cb2614f62c854881fb66062c3
+      size: 6828
+    - path: src/steam_rec/rerank.py
+      hash: md5
+      md5: 28798f3bfc3981c2b7766a6f14bbb473
+      size: 8855
+    outs:
+    - path: metrics/rerank_val.json
+      hash: md5
+      md5: 72f4f181fcbdfc0a292a2c1cdf07a1bb
+      size: 2846
+  serve_build:
+    cmd: uv run python -m steam_rec.serve_build
+    deps:
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: src/steam_rec/cooccurrence.py
+      hash: md5
+      md5: 700b7eb98842d7e48d9efcc02e2e6fc4
+      size: 5379
+    - path: src/steam_rec/ranker.py
+      hash: md5
+      md5: 2abb10b4d4737ae54e1e081f12f32224
+      size: 11528
+    - path: src/steam_rec/serve_build.py
+      hash: md5
+      md5: 8baf6667e51f32e88c9e33edfe154edf
+      size: 2605
+    outs:
+    - path: data/serve
+      hash: md5
+      md5: dde43fb6ba7a8c891823475f3e27d9a8.dir
+      size: 19746435
+      nfiles: 3
+  final_eval:
+    cmd: uv run python -m steam_rec.final_eval
+    deps:
+    - path: data/content/neighbors.parquet
+      hash: md5
+      md5: c72bb0d5f77297959ae5d550eedd6ac4
+      size: 30575341
+    - path: data/cooccurrence/test_neighbors.parquet
+      hash: md5
+      md5: 3f76f85dc3a497761ddd3bdf33801e2c
+      size: 15238112
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: data/split/test_seeds.parquet
+      hash: md5
+      md5: 83a0c209c898c1703ad7a0e05d417905
+      size: 947840
+    - path: data/split/test_targets.parquet
+      hash: md5
+      md5: 7d18fc7a1784a79eb8dd13e76111cae3
+      size: 562017
+    - path: models/ranker.txt
+      hash: md5
+      md5: 2880aa7be480da571714aba980088fd5
+      size: 1056209
+    - path: src/steam_rec/candidates.py
+      hash: md5
+      md5: 31202988aee66c7a5eac4c0228ca1d8c
+      size: 2746
+    - path: src/steam_rec/evaluate.py
+      hash: md5
+      md5: 0858445cb2614f62c854881fb66062c3
+      size: 6828
+    - path: src/steam_rec/final_eval.py
+      hash: md5
+      md5: 3ac9503c574541915ab115850f94b347
+      size: 4400
+    - path: src/steam_rec/ranker.py
+      hash: md5
+      md5: 2abb10b4d4737ae54e1e081f12f32224
+      size: 11528
+    - path: src/steam_rec/recommender.py
+      hash: md5
+      md5: e2f41ae9f30c921fb4c1479fb2297253
+      size: 8738
+    - path: src/steam_rec/rerank.py
+      hash: md5
+      md5: 28798f3bfc3981c2b7766a6f14bbb473
+      size: 8855
+    outs:
+    - path: metrics/test.json
+      hash: md5
+      md5: 57069cc51b300136948de058c0bc62e0
+      size: 1473

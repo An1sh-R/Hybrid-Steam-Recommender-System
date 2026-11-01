@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from steam_rec.candidates import TOP_N, keep_top_n, recommend_from_neighbors, remove_seeds
+from steam_rec.candidates import TOP_N, keep_top_n, recommend_from_neighbors, released_before, remove_seeds
 from steam_rec.content import CONTENT_DIR
 from steam_rec.cooccurrence import COOCCURRENCE_DIR
 from steam_rec.data import PROJECT_ROOT
@@ -125,8 +125,7 @@ def evaluate(
     like_counts = likes["app_id"].value_counts()
 
     # Content knows every catalog game; only allow games that exist by the end of the val period.
-    released_ids = catalog.loc[catalog["date_release"] < TEST_CUTOFF, "app_id"]
-    content_neighbors = content_neighbors[content_neighbors["neighbor_id"].isin(released_ids)]
+    content_neighbors = released_before(content_neighbors, catalog, TEST_CUTOFF)
 
     methods = {
         "popularity": popularity_recommend(like_counts, seeds),

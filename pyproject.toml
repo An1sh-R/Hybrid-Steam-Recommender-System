@@ -3,22 +3,27 @@ name = "steam-rec"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.162.0",
+    "lightgbm>=4.7.0",
     "numpy>=2.5.4",
     "pandas>=3.1.0",
     "pyarrow>=26.0.0",
     "scikit-learn>=1.9.1",
     "scipy>=1.18.1",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
     "dvc>=3.67.1",
     "dvc-s3>=3.3.0",
+    "httpx2>=2.16.0",
     "ipykernel>=7.4.0",
     "matplotlib>=3.11.2",
     "nbconvert>=7.17.2",
     "nbformat>=5.11.1",
     "pytest>=9.2.0",
+    "ruff>=0.17.3",
 ]
 
 [build-system]
@@ -27,3 +32,17 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+# E/F: style errors and real bugs (unused imports, undefined names), I: import order,
+# B: likely bugs ("bugbear"), UP: modern Python syntax.
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# These hold a copy of games.csv's real header line, which is longer than 120 characters.
+"tests/conftest.py" = ["E501"]
+"tests/test_fetch_tags.py" = ["E501"]

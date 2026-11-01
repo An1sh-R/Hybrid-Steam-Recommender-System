@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from steam_rec.candidates import keep_top_n, recommend_from_neighbors, remove_seeds
+from steam_rec.candidates import keep_top_n, recommend_from_neighbors, released_before, remove_seeds
 
 # A hand-made neighbour table, as any retriever would produce.
 #   seed 1 -> 2 (0.9), 3 (0.5), 4 (0.2)        seed 2 -> 1 (0.9), 3 (0.3), 5 (0.4)
@@ -20,7 +20,7 @@ def test_remove_seeds_only_drops_that_users_seeds():
     kept = remove_seeds(candidates, seeds)
 
     # Game 10 is user 1's seed, but still a valid candidate for user 2.
-    assert list(zip(kept["user_id"], kept["app_id"])) == [(1, 20), (2, 10)]
+    assert list(zip(kept["user_id"], kept["app_id"], strict=True)) == [(1, 20), (2, 10)]
 
 
 def test_keep_top_n_sorts_by_score_breaks_ties_by_app_id_and_ranks():
@@ -77,3 +77,11 @@ def test_recommend_returns_nothing_for_seeds_without_neighbours():
     recs = recommend_from_neighbors(seeds, TOY_NEIGHBORS)
 
     assert len(recs) == 0
+
+
+def test_released_before_drops_games_that_did_not_exist_yet():
+    neighbors = pd.DataFrame({"app_id": [1, 1], "neighbor_id": [10, 20], "similarity": [0.9, 0.8]})
+    catalog = pd.DataFrame({"app_id": [10, 20], "date_release": pd.to_datetime(["2021-05-01", "2023-03-01"])})
+    kept = released_before(neighbors, catalog, pd.Timestamp("2022-08-13"))
+
+    assert kept["neighbor_id"].tolist() == [10]
