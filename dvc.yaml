@@ -82,3 +82,14 @@ stages:
     metrics:
       - metrics/rerank_val.json:
           cache: false
+
+  serve_build:
+    cmd: uv run python -m steam_rec.serve_build
+    deps:
+      - data/processed/reviews.parquet
+      - data/processed/catalog.parquet
+      - src/steam_rec/cooccurrence.py
+      - src/steam_rec/ranker.py
+      - src/steam_rec/serve_build.py
+    outs:
+      - data/serve

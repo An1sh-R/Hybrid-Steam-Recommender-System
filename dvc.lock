@@ -208,3 +208,32 @@ stages:
       hash: md5
       md5: 72f4f181fcbdfc0a292a2c1cdf07a1bb
       size: 2846
+  serve_build:
+    cmd: uv run python -m steam_rec.serve_build
+    deps:
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: src/steam_rec/cooccurrence.py
+      hash: md5
+      md5: 700b7eb98842d7e48d9efcc02e2e6fc4
+      size: 5379
+    - path: src/steam_rec/ranker.py
+      hash: md5
+      md5: eaef8775db0ac1094c6921567757af8b
+      size: 11297
+    - path: src/steam_rec/serve_build.py
+      hash: md5
+      md5: 24eb3eca6e01fe9575d2de42a7baab9a
+      size: 2537
+    outs:
+    - path: data/serve
+      hash: md5
+      md5: dde43fb6ba7a8c891823475f3e27d9a8.dir
+      size: 19746435
+      nfiles: 3
