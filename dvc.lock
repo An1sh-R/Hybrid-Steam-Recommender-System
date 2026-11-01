@@ -121,3 +121,50 @@ stages:
       md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
       size: 30575341
       nfiles: 1
+  ranker:
+    cmd: uv run python -m steam_rec.ranker
+    deps:
+    - path: data/content
+      hash: md5
+      md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
+      size: 30575341
+      nfiles: 1
+    - path: data/cooccurrence
+      hash: md5
+      md5: 8d69cb8426c48a17d56541bdc1bd484a.dir
+      size: 29129888
+      nfiles: 2
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: data/split
+      hash: md5
+      md5: 0ae1135cfc1894542999e5814915be82.dir
+      size: 3052829
+      nfiles: 4
+    - path: src/steam_rec/candidates.py
+      hash: md5
+      md5: 70ac4feee9c30c461447ab6062487e3f
+      size: 2408
+    - path: src/steam_rec/evaluate.py
+      hash: md5
+      md5: 8d1125f35ece310c54684a16d550201b
+      size: 6751
+    - path: src/steam_rec/ranker.py
+      hash: md5
+      md5: 8170317ef78931d915595d89f6f8a1a3
+      size: 10763
+    outs:
+    - path: metrics/ranker_val.json
+      hash: md5
+      md5: 25ab61fc7275aeb06668005924a2cbd7
+      size: 2396
+    - path: models/ranker.txt
+      hash: md5
+      md5: 2880aa7be480da571714aba980088fd5
+      size: 1056209

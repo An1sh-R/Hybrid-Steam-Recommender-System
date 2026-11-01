@@ -50,3 +50,20 @@ stages:
     metrics:
       - metrics/retrieval_val.json:
           cache: false
+
+  ranker:
+    cmd: uv run python -m steam_rec.ranker
+    deps:
+      - data/processed/reviews.parquet
+      - data/processed/catalog.parquet
+      - data/split
+      - data/cooccurrence
+      - data/content
+      - src/steam_rec/candidates.py
+      - src/steam_rec/evaluate.py
+      - src/steam_rec/ranker.py
+    outs:
+      - models/ranker.txt
+    metrics:
+      - metrics/ranker_val.json:
+          cache: false
