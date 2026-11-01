@@ -83,6 +83,26 @@ stages:
       - metrics/rerank_val.json:
           cache: false
 
+  final_eval:
+    cmd: uv run python -m steam_rec.final_eval
+    deps:
+      - data/processed/reviews.parquet
+      - data/processed/catalog.parquet
+      - data/split/test_seeds.parquet
+      - data/split/test_targets.parquet
+      - data/cooccurrence/test_neighbors.parquet
+      - data/content/neighbors.parquet
+      - models/ranker.txt
+      - src/steam_rec/candidates.py
+      - src/steam_rec/evaluate.py
+      - src/steam_rec/ranker.py
+      - src/steam_rec/recommender.py
+      - src/steam_rec/rerank.py
+      - src/steam_rec/final_eval.py
+    metrics:
+      - metrics/test.json:
+          cache: false
+
   serve_build:
     cmd: uv run python -m steam_rec.serve_build
     deps:

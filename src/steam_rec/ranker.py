@@ -23,7 +23,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from steam_rec.candidates import TOP_N, keep_top_n, recommend_from_neighbors
+from steam_rec.candidates import TOP_N, keep_top_n, recommend_from_neighbors, released_before
 from steam_rec.content import CONTENT_DIR
 from steam_rec.cooccurrence import COOCCURRENCE_DIR
 from steam_rec.data import PROJECT_ROOT
@@ -186,8 +186,7 @@ def ranker(
     content_neighbors = pd.read_parquet(content_dir / "neighbors.parquet")
 
     # Same rule as evaluate.py: content may only suggest games that exist by the end of the val period.
-    released_ids = catalog.loc[catalog["date_release"] < TEST_CUTOFF, "app_id"]
-    content_neighbors = content_neighbors[content_neighbors["neighbor_id"].isin(released_ids)]
+    content_neighbors = released_before(content_neighbors, catalog, TEST_CUTOFF)
 
     features_by_game = game_features(reviews, catalog, VAL_CUTOFF)
     likes = reviews[reviews["is_recommended"] & (reviews["date"] < VAL_CUTOFF)]

@@ -42,3 +42,9 @@ def recommend_from_neighbors(seeds: pd.DataFrame, neighbors: pd.DataFrame, top_n
 
     recs = scores.merge(best, on=["user_id", "app_id"])
     return keep_top_n(recs, top_n)
+
+
+def released_before(neighbors: pd.DataFrame, catalog: pd.DataFrame, cutoff: pd.Timestamp) -> pd.DataFrame:
+    """Keep only neighbour rows whose recommended game was released before `cutoff`."""
+    released_ids = catalog.loc[catalog["date_release"] < cutoff, "app_id"]
+    return neighbors[neighbors["neighbor_id"].isin(released_ids)]

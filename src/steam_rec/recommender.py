@@ -87,6 +87,17 @@ def explain(row: pd.Series, games_by_id: pd.DataFrame) -> dict:
     return {"type": "similar_tags", "seed_app_id": seed_id, "shared_tags": shared_tags, "text": text}
 
 
+def score_and_rerank(
+    candidates: pd.DataFrame, model: lgb.Booster, max_log_likes: float, alpha: float = ALPHA
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Ranker scores -> each user's top 200 (`ranked`) -> popularity penalty -> each user's top 10 (`final`)."""
+    scored = candidates.copy()
+    scored["score"] = model.predict(candidates[FEATURES])
+    ranked = keep_top_n(scored, TOP_N)
+    final = popularity_penalty(ranked, alpha, max_log_likes)
+    return ranked, final
+
+
 def recommend(seed_ids: list[int], artifacts: Artifacts, n: int = N_RECOMMENDATIONS, alpha: float = ALPHA) -> list[dict]:
     """Recommend `n` games for someone who liked the games in `seed_ids`, each with an explanation."""
     games_by_id = artifacts.games.set_index("app_id")
@@ -110,11 +121,9 @@ def recommend(seed_ids: list[int], artifacts: Artifacts, n: int = N_RECOMMENDATI
     candidates = candidates[~candidates["app_id"].isin(non_game_ids)]
 
     candidates = candidates.merge(artifacts.game_features, on="app_id", how="left")
-    candidates["score"] = artifacts.model.predict(candidates[FEATURES])
-
-    # Same steps as evaluated: ranker top 200, then the popularity penalty picks the final n.
-    ranked = keep_top_n(candidates, TOP_N)
-    final = popularity_penalty(ranked, alpha, artifacts.max_log_likes).head(n)
+    ranked, final = score_and_rerank(candidates, artifacts.model, artifacts.max_log_likes, alpha)
+    final = final.head(n)
+    # Bring back the candidate columns (ranks, best seeds) that the explanation needs.
     final = final[["app_id", "rank"]].merge(ranked.drop(columns=["score", "rank"]), on="app_id")
 
     recommendations = []

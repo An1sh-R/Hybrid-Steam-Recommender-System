@@ -1,8 +1,9 @@
 """Tests for steam_rec.recommender with the tiny `toy_artifacts` fixture (conftest.py) and its fake model."""
 
+import pandas as pd
 import pytest
 
-from steam_rec.recommender import recommend, search_games
+from steam_rec.recommender import recommend, score_and_rerank, search_games
 
 
 def test_search_is_case_insensitive_skips_non_games_and_puts_popular_first(toy_artifacts):
@@ -52,3 +53,20 @@ def test_recommend_respects_n_and_rejects_unknown_games(toy_artifacts):
 
     with pytest.raises(ValueError):
         recommend([1, 999], toy_artifacts)
+
+
+def test_score_and_rerank_ranks_every_candidate_then_penalises_to_top_10(toy_artifacts):
+    # 2 users x 15 candidates; the fake model scores cooc_score + content_score.
+    rows = []
+    for user in [1, 2]:
+        for app in range(15):
+            rows.append({"user_id": user, "app_id": app, "cooc_score": app / 10, "content_score": 0.0,
+                         "cooc_rank": 1, "content_rank": 201, "log_likes": 0.0, "like_share": 0.5,
+                         "price": 0.0, "age_years": 1.0})
+    candidates = pd.DataFrame(rows)
+    ranked, final = score_and_rerank(candidates, toy_artifacts.model, max_log_likes=12.0)
+
+    assert ranked.groupby("user_id").size().tolist() == [15, 15]
+    assert final.groupby("user_id").size().tolist() == [10, 10]
+    # No popularity differences here, so the penalty keeps the model's order: app 14 first.
+    assert final[final["user_id"] == 1]["app_id"].tolist()[:3] == [14, 13, 12]
