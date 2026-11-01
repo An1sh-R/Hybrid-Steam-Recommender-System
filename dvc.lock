@@ -3,6 +3,11 @@ stages:
   prepare:
     cmd: uv run python -m steam_rec.prepare
     deps:
+    - path: data/external
+      hash: md5
+      md5: b9390de0507475f7e01110f7f97f8b7d.dir
+      size: 257480
+      nfiles: 1
     - path: data/raw
       hash: md5
       md5: 69c5f77307038ad17c6e0a447b7cecce.dir
@@ -10,17 +15,17 @@ stages:
       nfiles: 4
     - path: src/steam_rec/data.py
       hash: md5
-      md5: 2f96aa0c792cc469abc85078772a9eec
-      size: 2354
+      md5: b8f7add9b64ad1eda9d901dedb585297
+      size: 2511
     - path: src/steam_rec/prepare.py
       hash: md5
-      md5: 32439ad0f9c68f564c825978c2ab66a2
-      size: 1484
+      md5: 18f06abd95f77b35b25ca2bee8073a12
+      size: 2664
     outs:
     - path: data/processed
       hash: md5
-      md5: e109f78b0ff42f1fa2e84c7a72fb09b1.dir
-      size: 342365099
+      md5: ffade121142eae84e3b0d258a90f967a.dir
+      size: 342383427
       nfiles: 2
   split:
     cmd: uv run python -m steam_rec.split
@@ -48,8 +53,8 @@ stages:
       size: 334215631
     - path: src/steam_rec/cooccurrence.py
       hash: md5
-      md5: b4429b46609349a0ee7f620b3d41b312
-      size: 7093
+      md5: 700b7eb98842d7e48d9efcc02e2e6fc4
+      size: 5379
     - path: src/steam_rec/split.py
       hash: md5
       md5: 40f7cf97eceb04728e2d7180d2db50fb
@@ -60,3 +65,59 @@ stages:
       md5: 8d69cb8426c48a17d56541bdc1bd484a.dir
       size: 29129888
       nfiles: 2
+  evaluate:
+    cmd: uv run python -m steam_rec.evaluate
+    deps:
+    - path: data/content
+      hash: md5
+      md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
+      size: 30575341
+      nfiles: 1
+    - path: data/cooccurrence
+      hash: md5
+      md5: 8d69cb8426c48a17d56541bdc1bd484a.dir
+      size: 29129888
+      nfiles: 2
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: data/processed/reviews.parquet
+      hash: md5
+      md5: 30dd00f794ac44e86f970b189e85a7a5
+      size: 334215631
+    - path: data/split
+      hash: md5
+      md5: 0ae1135cfc1894542999e5814915be82.dir
+      size: 3052829
+      nfiles: 4
+    - path: src/steam_rec/candidates.py
+      hash: md5
+      md5: 70ac4feee9c30c461447ab6062487e3f
+      size: 2408
+    - path: src/steam_rec/evaluate.py
+      hash: md5
+      md5: 8d1125f35ece310c54684a16d550201b
+      size: 6751
+    outs:
+    - path: metrics/retrieval_val.json
+      hash: md5
+      md5: c67a406789cb6139d90d525a140217c4
+      size: 1921
+  content:
+    cmd: uv run python -m steam_rec.content
+    deps:
+    - path: data/processed/catalog.parquet
+      hash: md5
+      md5: 82f8c20febb771fe410c5027b619f674
+      size: 8167796
+    - path: src/steam_rec/content.py
+      hash: md5
+      md5: 26dceb0e50353bf0698b51f7bc017189
+      size: 3900
+    outs:
+    - path: data/content
+      hash: md5
+      md5: ed7be9e8102912c57f3c1a8663c4c0ff.dir
+      size: 30575341
+      nfiles: 1
