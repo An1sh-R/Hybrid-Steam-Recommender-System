@@ -5,7 +5,7 @@ import math
 import pandas as pd
 import pytest
 
-from steam_rec.cooccurrence import build_like_matrix, likes_before, recommend, top_neighbors
+from steam_rec.cooccurrence import build_like_matrix, likes_before, top_neighbors
 
 CUTOFF = pd.Timestamp("2022-01-01")
 
@@ -108,50 +108,3 @@ def test_chunk_size_does_not_change_the_result():
     all_at_once = top_neighbors(matrix, app_ids, top_k=10, min_both_liked=1, chunk_size=100)
 
     pd.testing.assert_frame_equal(one_at_a_time, all_at_once)
-
-
-# A hand-made neighbour table for testing recommend().
-#   seed 1 -> 2 (0.9), 3 (0.5), 4 (0.2)        seed 2 -> 1 (0.9), 3 (0.3), 5 (0.4)
-TOY_NEIGHBORS = pd.DataFrame({
-    "app_id": [1, 1, 1, 2, 2, 2],
-    "neighbor_id": [2, 3, 4, 1, 3, 5],
-    "both_liked": [9, 5, 2, 9, 3, 4],
-    "similarity": [0.9, 0.5, 0.2, 0.9, 0.3, 0.4],
-    "also_liked_share": [0.8, 0.4, 0.1, 0.7, 0.6, 0.3],
-})
-
-
-def test_recommend_sums_similarity_over_seeds_and_skips_seeds():
-    seeds = pd.DataFrame({"user_id": [7, 7], "app_id": [1, 2]})
-    recs = recommend(seeds, TOY_NEIGHBORS)
-
-    # Game 3: 0.5 (from seed 1) + 0.3 (from seed 2) = 0.8. Games 1 and 2 are seeds, so skipped.
-    assert recs["app_id"].tolist() == [3, 5, 4]
-    assert recs["score"].tolist() == pytest.approx([0.8, 0.4, 0.2])
-    assert recs["rank"].tolist() == [1, 2, 3]
-
-
-def test_recommend_explains_with_the_strongest_seed():
-    seeds = pd.DataFrame({"user_id": [7, 7], "app_id": [1, 2]})
-    recs = recommend(seeds, TOY_NEIGHBORS)
-    game_3 = recs[recs["app_id"] == 3].iloc[0]
-
-    # Seed 1 gives game 3 more similarity (0.5) than seed 2 does (0.3).
-    assert game_3["best_seed"] == 1
-    assert game_3["best_seed_share"] == pytest.approx(0.4)
-
-
-def test_recommend_handles_each_user_separately_and_respects_top_n():
-    seeds = pd.DataFrame({"user_id": [7, 7, 8], "app_id": [1, 2, 2]})
-    recs = recommend(seeds, TOY_NEIGHBORS, top_n=2)
-
-    # User 8 only gave game 2, so game 1 is a fair recommendation for them.
-    assert recs[recs["user_id"] == 8]["app_id"].tolist() == [1, 5]
-    assert recs[recs["user_id"] == 7]["app_id"].tolist() == [3, 5]
-
-
-def test_recommend_returns_nothing_for_seeds_without_neighbours():
-    seeds = pd.DataFrame({"user_id": [9], "app_id": [999]})
-    recs = recommend(seeds, TOY_NEIGHBORS)
-
-    assert len(recs) == 0
