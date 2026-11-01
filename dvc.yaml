@@ -6,7 +6,47 @@ stages:
     cmd: uv run python -m steam_rec.prepare
     deps:
       - data/raw
+      - data/external
       - src/steam_rec/data.py
       - src/steam_rec/prepare.py
     outs:
       - data/processed
+
+  split:
+    cmd: uv run python -m steam_rec.split
+    deps:
+      - data/processed/reviews.parquet
+      - src/steam_rec/split.py
+    outs:
+      - data/split
+
+  cooccurrence:
+    cmd: uv run python -m steam_rec.cooccurrence
+    deps:
+      - data/processed/reviews.parquet
+      - src/steam_rec/split.py
+      - src/steam_rec/cooccurrence.py
+    outs:
+      - data/cooccurrence
+
+  content:
+    cmd: uv run python -m steam_rec.content
+    deps:
+      - data/processed/catalog.parquet
+      - src/steam_rec/content.py
+    outs:
+      - data/content
+
+  evaluate:
+    cmd: uv run python -m steam_rec.evaluate
+    deps:
+      - data/processed/reviews.parquet
+      - data/processed/catalog.parquet
+      - data/split
+      - data/cooccurrence
+      - data/content
+      - src/steam_rec/candidates.py
+      - src/steam_rec/evaluate.py
+    metrics:
+      - metrics/retrieval_val.json:
+          cache: false

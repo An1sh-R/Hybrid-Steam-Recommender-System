@@ -13,6 +13,8 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
+# Data fetched from outside Kaggle (fetched once, versioned with `dvc add`).
+STEAMSPY_TAGS_PATH = PROJECT_ROOT / "data" / "external" / "steamspy_tags.jsonl"
 
 # Whole words in a title that mark it as not a game.
 NON_GAME_WORDS = ["Soundtrack", "OST", "DLC", "Season Pass", "Artbook"]
