@@ -1,5 +1,7 @@
-# CI: install the locked environment, lint the code, run the test suite,
+# CI/CD: install the locked environment, lint the code, run the test suite,
 # then build the Docker image and check the container really serves recommendations.
+# On pushes to main only (i.e. merged pull requests), also publish the image to GitHub's container
+# registry and tell Render to deploy it (D42).
 # Runs on every pull request and on every push to main.
 
 name: CI
@@ -35,6 +37,13 @@ jobs:
     # Only build the image once lint and tests have passed.
     needs: test
     runs-on: ubuntu-latest
+    # Allows this job's built-in GITHUB_TOKEN to publish images to ghcr.io (and nothing more).
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Registry image names must be lowercase.
+      IMAGE: ghcr.io/an1sh-r/hybrid-steam-recommender-system
     steps:
       - name: Check out the code
         uses: actions/checkout@v6
@@ -73,3 +82,34 @@ jobs:
       - name: Show the container's logs if anything failed
         if: failure()
         run: docker logs steam-rec
+
+      # ---- Publishing and deploying: only for pushes to main, never for pull requests ----
+
+      - name: Log in to GitHub's container registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the image (tagged latest and with the commit)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag steam-rec "$IMAGE:latest"
+          docker tag steam-rec "$IMAGE:sha-$GITHUB_SHA"
+          docker push --all-tags "$IMAGE"
+
+      - name: Deploy on Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK secret not set yet, so nothing is deployed."
+            exit 0
+          fi
+          # Deploy exactly this commit's image. imgURL must be URL-encoded: / is %2F and : is %3A.
+          IMAGE_URL="ghcr.io%2Fan1sh-r%2Fhybrid-steam-recommender-system%3Asha-$GITHUB_SHA"
+          curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK&imgURL=$IMAGE_URL" > /dev/null
+          echo "Render deploy started for sha-$GITHUB_SHA"

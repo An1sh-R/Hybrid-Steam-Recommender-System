@@ -286,8 +286,8 @@ stages:
       size: 11528
     - path: src/steam_rec/recommender.py
       hash: md5
-      md5: e2f41ae9f30c921fb4c1479fb2297253
-      size: 8738
+      md5: 9151b836293fb5b1daf1b9615ea06bc4
+      size: 10094
     - path: src/steam_rec/rerank.py
       hash: md5
       md5: 28798f3bfc3981c2b7766a6f14bbb473

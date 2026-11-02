@@ -72,3 +72,30 @@ def test_home_page_is_served(client):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "Find your next game" in response.text
+
+
+def test_recommendations_page_and_shared_files_are_served(client):
+    page = client.get("/recommendations")
+    assert page.status_code == 200
+    assert "Get recommendations" in page.text
+
+    # Both pages load these two shared files.
+    assert client.get("/static/styles.css").status_code == 200
+    assert client.get("/static/common.js").status_code == 200
+
+
+def test_top_returns_most_liked_real_games_with_three_tags(client):
+    response = client.get("/top", params={"limit": 2})
+
+    assert response.status_code == 200
+    games = response.json()
+    # Toy likes: Hollow Knight 12, Hades 11 (log scale).
+    assert [game["title"] for game in games] == ["Hollow Knight", "Hades"]
+    assert games[0]["tags"] == ["Metroidvania", "Souls-like", "Platformer"]
+    assert games[0]["positive_ratio"] == 97
+    assert games[0]["user_reviews"] == 300000
+
+
+def test_top_validates_the_limit(client):
+    assert client.get("/top", params={"limit": 0}).status_code == 422
+    assert client.get("/top", params={"limit": 51}).status_code == 422

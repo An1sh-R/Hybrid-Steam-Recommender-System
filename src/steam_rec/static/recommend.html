@@ -1,0 +1,277 @@
+<!doctype html>
+<!--
+  The recommendations page (decisions D31, D37-D39, D41). Served by api.py at "/recommendations".
+  Search for 3-5 games you liked, then ask for recommendations. The page shows the top 10, then a row
+  of 5 from each retriever on its own: similar tags (content) and players also liked (co-occurrence).
+  Each seed game gets its own colour, and every recommendation shows a dot in the colour of the seed
+  that led to it. Games picked on the home page arrive already chosen (sessionStorage, see common.js);
+  with 3 or more, the recommendations load straight away.
+  Shared styles in /static/styles.css, shared helpers in /static/common.js. No framework, no build step.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Get recommendations - Steam game recommender</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main">
+    <div class="site-nav-inner">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Steam Recommender</a>
+      <div class="nav-links">
+        <a href="/">Top games</a>
+        <a href="/recommendations" aria-current="page">Get recommendations</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <h1>Get recommendations</h1>
+    <p class="intro">
+      Pick 3 to 5 Steam games you enjoyed. You'll get 10 suggestions, each with the reason it was picked,
+      based on 41 million player reviews and the games' community tags.
+    </p>
+
+    <section class="picker" aria-label="Pick your games">
+      <div class="search">
+        <label for="query">Search for a game you liked</label>
+        <input id="query" type="search" placeholder="e.g. Hollow Knight" autocomplete="off">
+        <ul id="matches" class="matches" aria-label="Matching games"></ul>
+      </div>
+
+      <ul id="seeds" class="seeds" aria-label="Games you picked"></ul>
+      <p id="hint" class="hint"></p>
+      <button id="go" class="go" disabled>Recommend games</button>
+      <p id="error" class="error" role="alert"></p>
+    </section>
+
+    <section id="top-section" class="result-block" hidden>
+      <div class="block-head">
+        <h2>Top picks for you</h2>
+      </div>
+      <ol id="top-list" class="results top"></ol>
+    </section>
+
+    <section id="similar-section" class="result-block" hidden>
+      <div class="block-head">
+        <h2>Similar games</h2>
+        <p class="block-note">They share community tags with the games you picked.</p>
+      </div>
+      <ul id="similar-list" class="results row"></ul>
+    </section>
+
+    <section id="also-liked-section" class="result-block" hidden>
+      <div class="block-head">
+        <h2>Players also liked</h2>
+        <p class="block-note">Liked by players who liked the same games as you.</p>
+      </div>
+      <ul id="also-liked-list" class="results row"></ul>
+    </section>
+  </main>
+
+  <footer>
+    Game images and data from Steam; not affiliated with Valve.
+    <a href="https://github.com/An1sh-R/Hybrid-Steam-Recommender-System">Source code on GitHub</a>.
+  </footer>
+
+  <script src="/static/common.js"></script>
+  <script>
+    const SEED_COLOURS = ["--seed-1", "--seed-2", "--seed-3", "--seed-4", "--seed-5"];
+
+    // The games picked so far: [{app_id, title, release_year, colour}, ...]
+    let seeds = [];
+    let searchTimer = null;
+
+    const queryInput = document.getElementById("query");
+    const matchesList = document.getElementById("matches");
+    const seedsList = document.getElementById("seeds");
+    const hint = document.getElementById("hint");
+    const goButton = document.getElementById("go");
+    const errorText = document.getElementById("error");
+    const topSection = document.getElementById("top-section");
+    const topList = document.getElementById("top-list");
+    const similarSection = document.getElementById("similar-section");
+    const similarList = document.getElementById("similar-list");
+    const alsoLikedSection = document.getElementById("also-liked-section");
+    const alsoLikedList = document.getElementById("also-liked-list");
+
+    function colourDot(colourVariable) {
+      const dot = element("span", "dot");
+      dot.style.setProperty("--dot-colour", `var(${colourVariable})`);
+      return dot;
+    }
+
+    // The first colour not used by a current seed, so removing a game frees its colour.
+    function nextFreeColour() {
+      const used = seeds.map((seed) => seed.colour);
+      return SEED_COLOURS.find((colour) => !used.includes(colour));
+    }
+
+    function renderSeeds() {
+      seedsList.replaceChildren();
+      for (const seed of seeds) {
+        const chip = element("li", "seed");
+        chip.append(gameImage(seed.app_id, "capsule_sm_120.jpg", "thumb"));
+        chip.append(colourDot(seed.colour), element("span", null, seed.title));
+        const remove = element("button", "remove", "×");
+        remove.setAttribute("aria-label", `Remove ${seed.title}`);
+        remove.addEventListener("click", () => {
+          seeds = seeds.filter((other) => other.app_id !== seed.app_id);
+          savePicks(seeds);
+          renderSeeds();
+        });
+        chip.append(remove);
+        seedsList.append(chip);
+      }
+
+      const missing = MIN_GAMES - seeds.length;
+      if (missing > 0) {
+        hint.textContent = `Pick ${missing} more game${missing === 1 ? "" : "s"} to get recommendations.`;
+      } else if (seeds.length === MAX_GAMES) {
+        hint.textContent = "That's the maximum of 5 games.";
+      } else {
+        hint.textContent = "You can add up to 5 games.";
+      }
+      goButton.disabled = seeds.length < MIN_GAMES;
+      queryInput.disabled = seeds.length >= MAX_GAMES;
+    }
+
+    function addSeed(game) {
+      if (seeds.length >= MAX_GAMES) return;
+      if (seeds.some((seed) => seed.app_id === game.app_id)) return;
+      seeds.push({ ...game, colour: nextFreeColour() });
+      savePicks(seeds);
+      queryInput.value = "";
+      matchesList.replaceChildren();
+      renderSeeds();
+      queryInput.focus();
+    }
+
+    async function searchGames(query) {
+      const response = await fetch(`/search?q=${encodeURIComponent(query)}&limit=8`);
+      if (!response.ok) return;
+      const games = await response.json();
+
+      matchesList.replaceChildren();
+      for (const game of games) {
+        const option = element("button");
+        option.type = "button";
+        const text = element("span");
+        text.append(element("span", null, `${game.title} `), element("span", "year", game.release_year));
+        option.append(gameImage(game.app_id, "capsule_sm_120.jpg", "thumb"), text);
+        option.addEventListener("click", () => addSeed(game));
+        const item = element("li");
+        item.append(option);
+        matchesList.append(item);
+      }
+    }
+
+    // Wait until typing pauses for 250 ms before searching, instead of one request per key press.
+    queryInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const query = queryInput.value.trim();
+      if (query.length < 2) {
+        matchesList.replaceChildren();
+        return;
+      }
+      searchTimer = setTimeout(() => searchGames(query), 250);
+    });
+
+    // One recommendation card: image, title (linking to the Steam page), year and price, reason.
+    // `rank` is the position in the top 10; the rows of 5 pass null and show no number.
+    function recommendationCard(rec, rank) {
+      const card = element("li", "card");
+      card.append(gameImage(rec.app_id, "header.jpg", "cover"));
+
+      const body = element("div", "card-body");
+
+      const title = element("h3", "card-title");
+      if (rank !== null) {
+        title.append(element("span", "rank", String(rank).padStart(2, "0")));
+      }
+      title.append(storeLink(rec.app_id, rec.title));
+      body.append(title);
+
+      body.append(element("p", "details", `${rec.release_year}, ${formatPrice(rec.price)}`));
+
+      // The dot takes the colour of the seed game this recommendation came from.
+      const seed = seeds.find((s) => s.app_id === rec.reason.seed_app_id);
+      const reason = element("p", "reason");
+      reason.append(colourDot(seed ? seed.colour : "--muted"), element("span", null, rec.reason.text));
+      body.append(reason);
+
+      card.append(body);
+      return card;
+    }
+
+    function renderTop(recommendations) {
+      topList.replaceChildren();
+      for (let index = 0; index < recommendations.length; index++) {
+        const card = recommendationCard(recommendations[index], index + 1);
+        if (index === 0) {
+          card.classList.add("featured");
+        }
+        topList.append(card);
+      }
+      topSection.hidden = false;
+    }
+
+    // One row of 5 from a single retriever; the whole section stays hidden if the row is empty.
+    function renderRow(section, list, recommendations) {
+      list.replaceChildren();
+      for (const rec of recommendations) {
+        list.append(recommendationCard(rec, null));
+      }
+      section.hidden = recommendations.length === 0;
+    }
+
+    async function getRecommendations() {
+      errorText.textContent = "";
+      goButton.disabled = true;
+      goButton.textContent = "Finding games…";
+      try {
+        const response = await fetch("/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app_ids: seeds.map((seed) => seed.app_id) }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          errorText.textContent = `Couldn't get recommendations: ${JSON.stringify(body.detail)}`;
+          return;
+        }
+        if (body.recommendations.length === 0) {
+          errorText.textContent = "No recommendations for these games. Try adding a more popular game.";
+          return;
+        }
+        renderTop(body.recommendations);
+        renderRow(similarSection, similarList, body.similar_tags);
+        renderRow(alsoLikedSection, alsoLikedList, body.players_also_liked);
+
+        // Scroll down to the results; jump instead of gliding if the person asked for less motion.
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        topSection.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      } catch (error) {
+        errorText.textContent = "The server didn't respond. Check that it's running and try again.";
+      } finally {
+        goButton.textContent = "Recommend games";
+        goButton.disabled = seeds.length < MIN_GAMES;
+      }
+    }
+
+    goButton.addEventListener("click", getRecommendations);
+
+    // Start with the games picked on the home page (if any), each with its own colour.
+    for (const pick of loadPicks()) {
+      if (seeds.length < MAX_GAMES) {
+        seeds.push({ ...pick, colour: nextFreeColour() });
+      }
+    }
+    renderSeeds();
+    if (seeds.length >= MIN_GAMES) {
+      getRecommendations();
+    }
+  </script>
+</body>
+</html>

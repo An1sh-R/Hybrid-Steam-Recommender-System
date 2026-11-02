@@ -1,0 +1,531 @@
+/*
+  Shared styles for both pages: home.html (the most-liked games) and recommend.html (D38, D41).
+  Dark theme modelled on TensorTonic's dark mode: near-black, neutral greys, one pistachio-green accent.
+  Sections: tokens, base, navigation, buttons, cards, home page, picker, results, picks bar, footer.
+*/
+
+/* ---------- Tokens ---------- */
+
+:root {
+  --background: #0A0A0A;
+  --surface: #121212;
+  --surface-raised: #1A1A1A;
+  --line: #262626;
+  --ink: #FAFAFA;
+  --muted: #A3A3A3;
+  --faint: #737373;
+  --accent: #93C572;
+  --accent-hover: #A8D38C;
+  --accent-ink: #000000;
+  --accent-soft: #1E2819;
+  --accent-line: #3F4E34;
+  --error: #F87171;
+  /* One colour per seed game, in the order they're picked (TensorTonic's dark diagram colours). */
+  --seed-1: #9CCBF5;
+  --seed-2: #FCD34D;
+  --seed-3: #C9B8F7;
+  --seed-4: #F9A8BA;
+  --seed-5: #7DE0E0;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --radius: 8px;
+  --page-width: 1120px;
+  color-scheme: dark;
+}
+
+/* ---------- Base ---------- */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  /* A very faint green glow at the top of the page, over the near-black. */
+  background:
+    radial-gradient(ellipse 80% 420px at 50% 0, rgba(0, 255, 148, 0.07), transparent),
+    var(--background);
+  background-repeat: no-repeat;
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+::selection { background: rgba(0, 255, 148, 0.3); }
+
+main {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 3rem 1rem 3rem;
+}
+
+h1 {
+  font-weight: 700;
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.9rem;
+}
+
+h2 {
+  font-weight: 650;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.intro { color: var(--muted); margin: 0 0 2rem; max-width: 58ch; font-size: 1.0625rem; }
+
+a { color: var(--ink); }
+
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Navigation (top of both pages) ---------- */
+
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-nav-inner {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+/* The logo: a small green square with a lighter dot, like a seed and what grows from it. */
+.brand-mark {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 4px;
+  background: radial-gradient(circle at 70% 30%, var(--accent-hover) 0 22%, var(--accent) 23%);
+}
+
+.nav-links { display: flex; gap: 0.25rem; }
+
+.nav-links a {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.nav-links a:hover { color: var(--ink); background: var(--surface-raised); }
+
+/* The page you're on. */
+.nav-links a[aria-current="page"] { color: var(--ink); background: var(--surface-raised); }
+
+/* ---------- Buttons ---------- */
+
+.go {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.go:hover { background: var(--accent-hover); }
+
+.go:disabled, .go[aria-disabled="true"] { background: var(--line); color: var(--muted); cursor: not-allowed; }
+
+.secondary {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+
+.secondary:hover { border-color: var(--muted); }
+
+/* ---------- Cards (used on both pages) ---------- */
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+/* As many columns of 260px+ as fit: 3 on a laptop, 1 on a phone. */
+.results.top { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+/* The rows of 5: narrower cards, so all 5 fit side by side on a laptop. */
+.results.row { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card:hover { border-color: var(--accent-line); }
+
+/* Steam's header images are 460 x 215. */
+.cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 460 / 215;
+  object-fit: cover;
+  background: var(--surface-raised);
+}
+
+/* Shown when Steam has no image for the game. */
+.no-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.card-body { padding: 0.85rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; flex: 1; }
+
+.card-title { display: flex; gap: 0.5rem; align-items: baseline; margin: 0; font-size: 1rem; line-height: 1.35; }
+
+.rank { flex: none; font-family: var(--mono); font-size: 0.85rem; color: var(--accent); }
+
+.card-title a { color: var(--ink); font-weight: 600; text-decoration: none; }
+
+.card-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.details { color: var(--muted); font-family: var(--mono); font-size: 0.8rem; margin: 0; }
+
+.reason { display: flex; align-items: baseline; gap: 0.5rem; margin: 0.2rem 0 0; font-size: 0.9rem; color: #D4D4D4; }
+
+.reason .dot { transform: translateY(0.05rem); }
+
+.dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--dot-colour);
+}
+
+/* Steam's small capsule images are 120 x 45. */
+.thumb {
+  flex: none;
+  width: 80px;
+  aspect-ratio: 120 / 45;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+/* ---------- Home page ---------- */
+
+/* The hero: headline and buttons over a faded mosaic of the most-liked games' cover art. */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+.mosaic {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.mosaic img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Fades the mosaic from dim at the top-right to fully black where the text sits. */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--background) 25%, rgba(10, 10, 10, 0.55) 70%, rgba(10, 10, 10, 0.3)),
+    linear-gradient(0deg, var(--background), transparent 45%);
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 6rem 1rem 5rem;
+}
+
+.hero .intro { margin-bottom: 2rem; }
+
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+.hero-stats { display: flex; flex-wrap: wrap; gap: 2rem; margin-top: 3rem; color: var(--muted); font-size: 0.9rem; }
+
+.hero-stats strong { display: block; color: var(--ink); font-family: var(--mono); font-size: 1.25rem; font-weight: 600; }
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.5rem 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.block-note { color: var(--muted); margin: 0.25rem 0 0; }
+
+.rating { color: var(--accent); }
+
+.tags { display: flex; flex-wrap: wrap; gap: 0.35rem; list-style: none; margin: 0.3rem 0 0.75rem; padding: 0; }
+
+.tags li {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+/* "Add to picks" sits at the bottom of each card, whatever the title length. */
+.pick {
+  margin-top: auto;
+  align-self: flex-start;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.pick:hover { border-color: var(--accent-line); }
+
+.pick[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+
+.pick:disabled { color: var(--faint); cursor: not-allowed; }
+
+.loading { color: var(--muted); }
+
+/* ---------- Picker (recommend page) ---------- */
+
+.picker {
+  max-width: 680px;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+
+.search { position: relative; }
+
+input[type="search"] {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+input[type="search"]::placeholder { color: var(--faint); }
+
+input[type="search"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+input[type="search"]:disabled { opacity: 0.5; }
+
+.matches {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0.35rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
+
+.matches:empty { display: none; }
+
+.matches button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.matches button:hover, .matches button:focus-visible { background: var(--line); outline: none; }
+
+.year { color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
+
+.seeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 1.25rem 0 0.75rem;
+  padding: 0;
+}
+
+.seeds:empty { display: none; }
+
+.seed {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.seed .thumb { width: 64px; }
+
+.remove {
+  font: inherit;
+  line-height: 1;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.remove:hover { background: var(--line); color: var(--ink); }
+
+.hint { color: var(--muted); margin: 1rem 0; }
+
+.error { color: var(--error); font-weight: 600; }
+
+.error:empty { display: none; }
+
+/* ---------- Results (recommend page) ---------- */
+
+.result-block { margin-top: 3.5rem; }
+
+.block-head { margin-bottom: 1.25rem; }
+
+/* Smaller text in the rows of 5. */
+.row .card-body { padding: 0.7rem 0.8rem 0.85rem; }
+
+.row .card-title { font-size: 0.92rem; }
+
+.row .reason { font-size: 0.82rem; }
+
+/* The top pick spans the full row, image beside the text, with a green-tinted border. */
+.card.featured {
+  grid-column: 1 / -1;
+  border-color: var(--accent-line);
+  background: linear-gradient(90deg, var(--surface), var(--accent-soft));
+}
+
+.featured .card-body { justify-content: center; padding: 1.5rem 1.75rem; gap: 0.5rem; }
+
+.featured .card-title { font-size: 1.6rem; letter-spacing: -0.02em; }
+
+.featured .rank { font-size: 1rem; }
+
+.featured .details { font-size: 0.9rem; }
+
+.featured .reason { font-size: 1rem; }
+
+@media (min-width: 720px) {
+  .card.featured { flex-direction: row; }
+  .featured .cover { width: 52%; flex: none; }
+}
+
+/* ---------- Picks bar (home page, bottom of the screen) ---------- */
+
+.picks-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  width: min(var(--page-width), calc(100% - 2rem));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+}
+
+.picks-bar[hidden] { display: none; }
+
+.picks-bar .thumbs { display: flex; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
+
+.picks-bar .thumb { width: 64px; }
+
+.picks-bar .picks-text { flex: 1; min-width: 12ch; color: var(--muted); margin: 0; }
+
+.picks-bar .picks-text strong { color: var(--ink); }
+
+/* Room at the bottom of the page so the bar never covers the last cards. */
+body.has-picks-bar { padding-bottom: 7rem; }
+
+/* ---------- Footer ---------- */
+
+footer {
+  max-width: var(--page-width);
+  margin: 2rem auto 0;
+  padding: 1.5rem 1rem 2.5rem;
+  color: var(--faint);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+footer a { color: var(--muted); }
+
+footer a:hover { color: var(--ink); }
