@@ -1,9 +1,12 @@
 """Web API for the recommender (decision D30).
 
 Endpoints:
-- GET  /                       -> the web page (static/index.html)
+- GET  /                       -> the home page: the 30 most-liked games (static/home.html)
+- GET  /recommendations        -> the page where you pick games and get recommendations (static/recommend.html)
+- GET  /static/...             -> the pages' shared CSS and JavaScript
 - GET  /health                 -> {"status": "ok"}, for Docker / hosting health checks
 - GET  /search?q=hollow        -> games whose title contains the text, most-reviewed first
+- GET  /top?limit=30           -> the most-liked games of all time, for the home page
 - POST /recommend              -> body {"app_ids": [3 to 5 different games]}; the top 10 games, plus
                                   5 more from each retriever (similar tags, players also liked), with reasons
 
@@ -18,12 +21,16 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from steam_rec.recommender import Artifacts, load_artifacts, recommend, search_games
+from steam_rec.recommender import N_TOP_GAMES, Artifacts, load_artifacts, recommend, search_games, top_games
 from steam_rec.split import MAX_SEEDS, MIN_SEEDS
 
-INDEX_PAGE = Path(__file__).parent / "static" / "index.html"
+STATIC_DIR = Path(__file__).parent / "static"
+HOME_PAGE = STATIC_DIR / "home.html"
+RECOMMEND_PAGE = STATIC_DIR / "recommend.html"
+N_TOP_TAGS = 3
 
 
 class GameOut(BaseModel):
@@ -32,6 +39,18 @@ class GameOut(BaseModel):
     app_id: int
     title: str
     release_year: int
+
+
+class TopGame(BaseModel):
+    """One game in the home page's most-liked list."""
+
+    app_id: int
+    title: str
+    release_year: int
+    price: float
+    positive_ratio: int
+    user_reviews: int
+    tags: list[str]
 
 
 class Reason(BaseModel):
@@ -86,10 +105,18 @@ def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
 
     app = FastAPI(title="Steam game recommender", lifespan=lifespan)
 
+    # The pages' shared styles.css and common.js, served as plain files.
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
     @app.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        """The web page; it calls /search and /recommend from the browser."""
-        return FileResponse(INDEX_PAGE)
+    def home() -> FileResponse:
+        """The home page; it calls /top from the browser."""
+        return FileResponse(HOME_PAGE)
+
+    @app.get("/recommendations", include_in_schema=False)
+    def recommendations_page() -> FileResponse:
+        """The recommendations page; it calls /search and /recommend from the browser."""
+        return FileResponse(RECOMMEND_PAGE)
 
     @app.get("/health")
     def health() -> dict:
@@ -103,6 +130,23 @@ def create_app(load: Callable[[], Artifacts] = load_artifacts) -> FastAPI:
         results = []
         for game in found.itertuples():
             results.append({"app_id": int(game.app_id), "title": game.title, "release_year": int(game.release_year)})
+        return results
+
+    @app.get("/top", response_model=list[TopGame])
+    def top(limit: int = Query(default=N_TOP_GAMES, ge=1, le=50)) -> list[dict]:
+        """The most-liked games of all time, with their first few tags."""
+        found = top_games(app.state.artifacts.games, app.state.artifacts.game_features, limit)
+        results = []
+        for game in found.itertuples():
+            results.append({
+                "app_id": int(game.app_id),
+                "title": game.title,
+                "release_year": int(game.release_year),
+                "price": float(game.price_final),
+                "positive_ratio": int(game.positive_ratio),
+                "user_reviews": int(game.user_reviews),
+                "tags": list(game.tags[:N_TOP_TAGS]),
+            })
         return results
 
     @app.post("/recommend", response_model=RecommendResponse)

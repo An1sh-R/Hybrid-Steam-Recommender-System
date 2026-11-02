@@ -4,6 +4,7 @@
 #
 # Build: docker build -t steam-rec .
 # Run:   docker run --rm -p 8000:8000 steam-rec     then open http://127.0.0.1:8000
+# Fits in 512MB of RAM (Render's free tier, D40): ~340MB idle, ~360MB after many requests.
 
 FROM python:3.12-slim-bookworm
 
@@ -47,11 +48,24 @@ RUN useradd --create-home appuser
 USER appuser
 
 ENV PATH="/app/.venv/bin:$PATH"
+
+# Memory settings (D40). Without them the app is killed at startup under a 512MB limit.
+# - ARROW_DEFAULT_MEMORY_POOL=system: Arrow (which reads the parquet files) uses the normal C
+#   allocator instead of its own pool, which keeps freed memory instead of giving it back.
+# - MALLOC_ARENA_MAX=2: glibc's allocator keeps at most 2 memory pools instead of one per thread,
+#   so less memory sits unused in half-empty pools.
+ENV ARROW_DEFAULT_MEMORY_POOL=system \
+    MALLOC_ARENA_MAX=2
+
+# Hosts like Render say which port to listen on in $PORT; 8000 when it isn't set.
+ENV PORT=8000
 EXPOSE 8000
 
 # Docker marks the container unhealthy if /health stops answering. The slim image has no curl,
 # so Python's own HTTP client does the check.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+    CMD python -c "import os, urllib.request; port = os.environ['PORT']; urllib.request.urlopen('http://127.0.0.1:' + port + '/health', timeout=3)"
 
-CMD ["uvicorn", "steam_rec.api:app", "--host", "0.0.0.0", "--port", "8000"]
+# `sh -c` so that $PORT is filled in when the container starts; `exec` makes uvicorn replace the
+# shell, so it receives the stop signal directly and shuts down cleanly.
+CMD ["sh", "-c", "exec uvicorn steam_rec.api:app --host 0.0.0.0 --port $PORT"]

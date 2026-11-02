@@ -12,7 +12,8 @@ Then two extra rows of 5 (D32), each straight from one retriever's own order, so
 what each retriever found on its own: "similar tags" (content) and "players also liked"
 (co-occurrence). A game appears at most once on the page: each row skips games already shown above it.
 
-Also `search_games` for finding a game by title, and `load_artifacts` to read data/serve etc.
+Also `search_games` for finding a game by title, `top_games` for the home page's most-liked list,
+and `load_artifacts` to read data/serve etc.
 """
 
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from steam_rec.serve_build import SERVE_DIR
 ALPHA = 0.3
 N_RECOMMENDATIONS = 10
 ROW_SIZE = 5
+N_TOP_GAMES = 30
 N_SHARED_TAGS = 3
 
 
@@ -48,12 +50,19 @@ class Artifacts:
 def load_artifacts(
     serve_dir: Path = SERVE_DIR, content_dir: Path = CONTENT_DIR, model_path: Path = MODEL_PATH
 ) -> Artifacts:
-    """Read the serving files and the ranker model from disk."""
+    """Read the serving files and the ranker model from disk, using as little memory as possible (D40)."""
     game_features = pd.read_parquet(serve_dir / "game_features.parquet")
+    # Only the 3 columns scoring uses (recommend_from_neighbors).
+    neighbor_columns = ["app_id", "neighbor_id", "similarity"]
+    cooc_neighbors = pd.read_parquet(serve_dir / "cooc_neighbors.parquet", columns=neighbor_columns)
+    # 5 million rows: app_ids fit easily in 32 bits, which halves the two id columns (101 MB -> 61 MB).
+    content_neighbors = pd.read_parquet(content_dir / "neighbors.parquet", columns=neighbor_columns)
+    content_neighbors["app_id"] = content_neighbors["app_id"].astype("int32")
+    content_neighbors["neighbor_id"] = content_neighbors["neighbor_id"].astype("int32")
     return Artifacts(
         games=pd.read_parquet(serve_dir / "games.parquet"),
-        cooc_neighbors=pd.read_parquet(serve_dir / "cooc_neighbors.parquet"),
-        content_neighbors=pd.read_parquet(content_dir / "neighbors.parquet"),
+        cooc_neighbors=cooc_neighbors,
+        content_neighbors=content_neighbors,
         game_features=game_features,
         model=lgb.Booster(model_file=str(model_path)),
         max_log_likes=float(game_features["log_likes"].max()),
@@ -66,6 +75,19 @@ def search_games(query: str, games: pd.DataFrame, limit: int = 10) -> pd.DataFra
     found = games[matches & ~games["is_non_game"]]
     found = found.sort_values("user_reviews", ascending=False)
     return found.head(limit)[["app_id", "title", "release_year"]]
+
+
+def top_games(games: pd.DataFrame, game_features: pd.DataFrame, n: int = N_TOP_GAMES) -> pd.DataFrame:
+    """The `n` most-liked real games of all time (likes in our reviews), for the home page (D41)."""
+    is_software = []
+    for tags in games["tags"]:
+        is_software.append("Software" in tags)
+    # Software (e.g. Wallpaper Engine) isn't caught by the non-game filter, but Steam tags it "Software".
+    real_games = games[~games["is_non_game"] & ~pd.Series(is_software, index=games.index)]
+
+    ranked = real_games.merge(game_features[["app_id", "log_likes"]], on="app_id")
+    ranked = ranked.sort_values("log_likes", ascending=False)
+    return ranked.head(n).reset_index(drop=True)
 
 
 def explain_players_also_liked(row: pd.Series, games_by_id: pd.DataFrame) -> dict:

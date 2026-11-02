@@ -1,9 +1,11 @@
 """Tests for steam_rec.recommender with the tiny `toy_artifacts` fixture (conftest.py) and its fake model."""
 
+import lightgbm as lgb
+import numpy as np
 import pandas as pd
 import pytest
 
-from steam_rec.recommender import recommend, score_and_rerank, search_games
+from steam_rec.recommender import load_artifacts, recommend, score_and_rerank, search_games, top_games
 
 
 def test_search_is_case_insensitive_skips_non_games_and_puts_popular_first(toy_artifacts):
@@ -111,3 +113,50 @@ def test_score_and_rerank_ranks_every_candidate_then_penalises_to_top_10(toy_art
     assert final.groupby("user_id").size().tolist() == [10, 10]
     # No popularity differences here, so the penalty keeps the model's order: app 14 first.
     assert final[final["user_id"] == 1]["app_id"].tolist()[:3] == [14, 13, 12]
+
+
+def test_load_artifacts_keeps_only_the_needed_columns_with_small_ids(tmp_path):
+    serve_dir = tmp_path / "serve"
+    content_dir = tmp_path / "content"
+    serve_dir.mkdir()
+    content_dir.mkdir()
+
+    pd.DataFrame({"app_id": [1], "title": ["Hades"]}).to_parquet(serve_dir / "games.parquet")
+    pd.DataFrame({"app_id": [1], "log_likes": [2.5]}).to_parquet(serve_dir / "game_features.parquet")
+    # The real files have extra columns that scoring never uses.
+    pd.DataFrame({"app_id": [1], "neighbor_id": [2], "both_liked": [7], "similarity": [0.5],
+                  "also_liked_share": [0.1]}).to_parquet(serve_dir / "cooc_neighbors.parquet")
+    pd.DataFrame({"app_id": np.array([1], dtype="int64"), "neighbor_id": np.array([2], dtype="int64"),
+                  "similarity": np.array([0.5], dtype="float32")}).to_parquet(content_dir / "neighbors.parquet")
+    # A real (tiny) LightGBM model file, since load_artifacts reads one from disk.
+    data = lgb.Dataset(np.array([[0.0], [1.0], [2.0], [3.0]]), label=[0.0, 1.0, 2.0, 3.0])
+    model = lgb.train({"objective": "regression", "min_data_in_leaf": 1, "verbose": -1}, data, num_boost_round=1)
+    model.save_model(str(tmp_path / "ranker.txt"))
+
+    artifacts = load_artifacts(serve_dir, content_dir, tmp_path / "ranker.txt")
+
+    assert artifacts.cooc_neighbors.columns.tolist() == ["app_id", "neighbor_id", "similarity"]
+    assert artifacts.content_neighbors["app_id"].dtype == "int32"
+    assert artifacts.content_neighbors["neighbor_id"].dtype == "int32"
+    assert artifacts.max_log_likes == 2.5
+
+
+def test_top_games_are_the_most_liked_real_games(toy_artifacts):
+    found = top_games(toy_artifacts.games, toy_artifacts.game_features, n=3)
+    # Toy log_likes: Hollow Knight 12, Hades 11, Dead Cells 10, Celeste 9, Ori 8, soundtrack 2.
+    assert found["title"].tolist() == ["Hollow Knight", "Hades", "Dead Cells"]
+
+    # The soundtrack (a non-game) never appears, however many are asked for.
+    everything = top_games(toy_artifacts.games, toy_artifacts.game_features, n=100)
+    assert 13 not in everything["app_id"].tolist()
+    assert len(everything) == 5
+
+
+def test_top_games_skip_software(toy_artifacts):
+    # Make Hollow Knight look like Wallpaper Engine: Steam tags software "Software".
+    games = toy_artifacts.games.copy()
+    games["tags"] = games["tags"].astype(object)
+    games.at[0, "tags"] = ["Utilities", "Software"]
+
+    found = top_games(games, toy_artifacts.game_features, n=2)
+    assert found["title"].tolist() == ["Hades", "Dead Cells"]

@@ -1,0 +1,201 @@
+<!doctype html>
+<!--
+  The home page (decision D41). Served by api.py at "/".
+  A hero with the main call to action over a faded mosaic of game art, then the 30 most-liked games
+  (from /top). Each game can be added to your picks; a bar at the bottom shows the picks and leads to
+  the recommendations page, which starts with them (they're kept in sessionStorage, see common.js).
+  Shared styles in /static/styles.css, shared helpers in /static/common.js. No framework, no build step.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam game recommender</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main">
+    <div class="site-nav-inner">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Steam Recommender</a>
+      <div class="nav-links">
+        <a href="/" aria-current="page">Top games</a>
+        <a href="/recommendations">Get recommendations</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div id="mosaic" class="mosaic" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <h1>Find your next game</h1>
+      <p class="intro">
+        Pick 3 to 5 games you love and get 10 suggestions, each with the reason it was picked:
+        games with the same tags, and games liked by players with the same favourites.
+      </p>
+      <div class="hero-actions">
+        <a class="go" href="/recommendations">Get recommendations</a>
+        <a class="secondary" href="#most-liked">Browse the most liked</a>
+      </div>
+      <div class="hero-stats">
+        <div><strong>41M</strong>player reviews</div>
+        <div><strong>13.8M</strong>players</div>
+        <div><strong>50K</strong>games</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="most-liked" aria-labelledby="most-liked-title">
+      <div class="section-head">
+        <div>
+          <h2 id="most-liked-title">Most liked on Steam</h2>
+          <p class="block-note">The 30 games players recommended most. Add a few you love to your picks.</p>
+        </div>
+      </div>
+      <p id="loading" class="loading">Loading games…</p>
+      <ol id="top-list" class="results top"></ol>
+    </section>
+  </main>
+
+  <div id="picks-bar" class="picks-bar" hidden>
+    <ul id="picks-thumbs" class="thumbs" aria-label="Your picks"></ul>
+    <p id="picks-text" class="picks-text" aria-live="polite"></p>
+    <button id="clear-picks" class="secondary" type="button">Clear</button>
+    <a class="go" href="/recommendations">Get recommendations</a>
+  </div>
+
+  <footer>
+    Game images and data from Steam; not affiliated with Valve.
+    <a href="https://github.com/An1sh-R/Hybrid-Steam-Recommender-System">Source code on GitHub</a>.
+  </footer>
+
+  <script src="/static/common.js"></script>
+  <script>
+    const MOSAIC_SIZE = 12;
+
+    // The games picked so far (also read by the recommendations page).
+    let picks = loadPicks();
+    // One "Add to picks" button per game on the page, by app_id, so they can all be updated together.
+    const pickButtons = new Map();
+
+    const mosaic = document.getElementById("mosaic");
+    const loading = document.getElementById("loading");
+    const topList = document.getElementById("top-list");
+    const picksBar = document.getElementById("picks-bar");
+    const picksThumbs = document.getElementById("picks-thumbs");
+    const picksText = document.getElementById("picks-text");
+
+    function isPicked(appId) {
+      return picks.some((pick) => pick.app_id === appId);
+    }
+
+    function togglePick(game) {
+      if (isPicked(game.app_id)) {
+        picks = picks.filter((pick) => pick.app_id !== game.app_id);
+      } else if (picks.length < MAX_GAMES) {
+        picks.push(game);
+      }
+      savePicks(picks);
+      renderPicks();
+    }
+
+    // Redraw everything that depends on the picks: each card's button and the bar at the bottom.
+    function renderPicks() {
+      for (const [appId, button] of pickButtons) {
+        const picked = isPicked(appId);
+        button.setAttribute("aria-pressed", String(picked));
+        button.textContent = picked ? "Added to picks" : "Add to picks";
+        // Once 5 are picked, only the picked games' buttons (to remove them) stay usable.
+        button.disabled = !picked && picks.length >= MAX_GAMES;
+      }
+
+      picksThumbs.replaceChildren();
+      for (const pick of picks) {
+        const item = element("li");
+        const thumb = gameImage(pick.app_id, "capsule_sm_120.jpg", "thumb");
+        thumb.title = pick.title;
+        item.append(thumb);
+        picksThumbs.append(item);
+      }
+
+      const missing = MIN_GAMES - picks.length;
+      picksText.replaceChildren();
+      picksText.append(element("strong", null, `${picks.length} picked.`));
+      if (missing > 0) {
+        picksText.append(` Add ${missing} more here, or search for any game on the next page.`);
+      } else if (picks.length === MAX_GAMES) {
+        picksText.append(" That's the maximum of 5.");
+      } else {
+        picksText.append(" Enough for recommendations; you can add up to 5.");
+      }
+
+      picksBar.hidden = picks.length === 0;
+      document.body.classList.toggle("has-picks-bar", picks.length > 0);
+    }
+
+    document.getElementById("clear-picks").addEventListener("click", () => {
+      picks = [];
+      savePicks(picks);
+      renderPicks();
+    });
+
+    // One card: cover, rank and title, year and price, rating, tags, and the "Add to picks" button.
+    function topGameCard(game, rank) {
+      const card = element("li", "card");
+      card.append(gameImage(game.app_id, "header.jpg", "cover"));
+
+      const body = element("div", "card-body");
+      const title = element("h3", "card-title");
+      title.append(element("span", "rank", String(rank).padStart(2, "0")), storeLink(game.app_id, game.title));
+      body.append(title);
+      body.append(element("p", "details", `${game.release_year}, ${formatPrice(game.price)}`));
+
+      const rating = element("p", "details");
+      rating.append(element("span", "rating", `${game.positive_ratio}% positive`));
+      rating.append(` of ${formatCount(game.user_reviews)} Steam reviews`);
+      body.append(rating);
+
+      const tags = element("ul", "tags");
+      tags.setAttribute("aria-label", "Tags");
+      for (const tag of game.tags) {
+        tags.append(element("li", null, tag));
+      }
+      body.append(tags);
+
+      const button = element("button", "pick");
+      button.type = "button";
+      button.addEventListener("click", () => {
+        togglePick({ app_id: game.app_id, title: game.title, release_year: game.release_year });
+      });
+      pickButtons.set(game.app_id, button);
+      body.append(button);
+
+      card.append(body);
+      return card;
+    }
+
+    async function loadTopGames() {
+      try {
+        const response = await fetch("/top?limit=30");
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const games = await response.json();
+
+        for (let index = 0; index < games.length; index++) {
+          topList.append(topGameCard(games[index], index + 1));
+        }
+        // The hero's background: the first 12 games' art.
+        for (const game of games.slice(0, MOSAIC_SIZE)) {
+          mosaic.append(gameImage(game.app_id, "header.jpg", "mosaic-image"));
+        }
+        loading.remove();
+        renderPicks();
+      } catch (error) {
+        loading.textContent = "Couldn't load the games. Check that the server is running and refresh the page.";
+      }
+    }
+
+    renderPicks();
+    loadTopGames();
+  </script>
+</body>
+</html>
